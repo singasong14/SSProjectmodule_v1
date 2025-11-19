@@ -12,7 +12,9 @@ st.set_page_config(page_title="MBTI 국가별 분석", layout="wide")
 # =========================
 
 st.sidebar.header("데이터 입력")
-input_text = st.sidebar.text_area("국가별 MBTI 데이터를 붙여넣으세요 (CSV 혹은 탭/공백 구분 가능)")
+input_text = st.sidebar.text_area(
+"국가별 MBTI 데이터를 붙여넣으세요 (첫 줄은 'Country,MBTI1,MBTI2,...')"
+)
 
 # =========================
 
@@ -24,19 +26,15 @@ def parse_text_to_df(text):
 lines = text.strip().splitlines()
 if not lines:
 return pd.DataFrame()
-
-```
-# 첫 줄은 열 이름으로 가정
 header = re.split(r"[\t,]+", lines[0].strip())
 data = []
 for line in lines[1:]:
-    row = re.split(r"[\t,]+", line.strip())
-    # 숫자는 float로 변환
-    row = [float(x) if re.match(r"^\d*\.?\d+$", x) else x for x in row]
-    data.append(row)
+row = re.split(r"[\t,]+", line.strip())
+# 숫자는 float로 변환
+row = [float(x) if re.match(r"^\d*.?\d+$", x) else x for x in row]
+data.append(row)
 df = pd.DataFrame(data, columns=header)
 return df
-```
 
 df = parse_text_to_df(input_text)
 
@@ -46,7 +44,7 @@ st.stop()
 
 # =========================
 
-# 사이드바 UI
+# 국가 선택 UI
 
 # =========================
 
@@ -69,7 +67,9 @@ title="전체 국가 MBTI 평균 비율",
 text=[f"{v:.2%}" for v in mean_mbti.values],
 )
 fig_mean.update_traces(marker_color='lightskyblue', textposition='outside')
-fig_mean.update_layout(yaxis_tickformat=".0%", xaxis_title="MBTI 유형", yaxis_title="평균 비율")
+fig_mean.update_layout(
+yaxis_tickformat=".0%", xaxis_title="MBTI 유형", yaxis_title="평균 비율"
+)
 st.plotly_chart(fig_mean, use_container_width=True)
 
 # =========================
@@ -97,7 +97,9 @@ title=f"{selected_country} MBTI 비율",
 text=[f"{v:.2%}" for v in country_data_sorted.values],
 )
 fig_country.update_traces(marker_color=colors, textposition='outside')
-fig_country.update_layout(yaxis_tickformat=".0%", xaxis_title="MBTI 유형", yaxis_title="비율")
+fig_country.update_layout(
+yaxis_tickformat=".0%", xaxis_title="MBTI 유형", yaxis_title="비율"
+)
 st.plotly_chart(fig_country, use_container_width=True)
 
 # =========================
@@ -106,5 +108,4 @@ st.plotly_chart(fig_country, use_container_width=True)
 
 # =========================
 
-st.markdown("---")
-st.markdown("💡 그래프 위에 마우스를 올리면 각 MBTI 유형의 비율을 확인할 수 있습니다.")
+st.markd
