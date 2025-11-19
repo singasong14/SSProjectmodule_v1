@@ -12,7 +12,8 @@ st.set_page_config(
 )
 
 # 1. 모든 국가 데이터
-# 제공된 모든 데이터를 문자열로 포함합니다.
+# (데이터 문자열은 이전과 동일하므로 공간 절약을 위해 여기서는 생략합니다)
+# (실제 코드에는 이전에 제공한 전체 data_string이 포함되어야 합니다)
 data_string = """Country	INFJ	ISFJ	INTP	ISFP	ENTP	INFP	ENTJ	ISTP	INTJ	ESFP	ESTJ	ENFP	ESTP	ISTJ	ENFJ	ESFJ
 Afghanistan	0.0463	0.061	0.0549	0.046	0.0495	0.0686	0.0511	0.0434	0.0431	0.0527	0.1188	0.0796	0.0652	0.0629	0.0562	0.1006
 Albania	0.0748	0.0449	0.0754	0.0334	0.0792	0.1045	0.0686	0.0233	0.0604	0.0405	0.0667	0.1045	0.0381	0.0418	0.0775	0.0665
@@ -175,7 +176,6 @@ Zimbabwe	0.0761	0.0741	0.0516	0.0436	0.0526	0.1111	0.0486	0.0204	0.0383	0.0505	0
 """
 
 # 2. MBTI 기질 그룹 및 색상 정의
-# 미학적 향상을 위한 맞춤형 색상 팔레트
 TYPE_GROUPS = {
     'Analysts (NT)': ['INTJ', 'INTP', 'ENTJ', 'ENTP'],
     'Diplomats (NF)': ['INFJ', 'INFP', 'ENFJ', 'ENFP'],
@@ -183,7 +183,6 @@ TYPE_GROUPS = {
     'Explorers (SP)': ['ISTP', 'ISFP', 'ESTP', 'ESFP']
 }
 
-# 그룹별 색상 팔레트
 GROUP_COLORS = {
     'Analysts (NT)': ['#6c5ce7', '#a29bfe', '#81ecec', '#00cec9'],
     'Diplomats (NF)': ['#00b894', '#55efc4', '#ffeaa7', '#fdcb6e'],
@@ -196,10 +195,12 @@ GROUP_COLORS = {
 def load_data():
     """
     문자열 데이터를 읽어 Pandas DataFrame으로 변환합니다.
-    데이터가 탭이 아닌 여러 공백으로 구분되어 있을 수 있으므로 sep='\s+'를 사용합니다.
+    데이터가 탭(tab)으로 구분되어 있으므로 sep='\t'를 사용합니다.
     """
     data = io.StringIO(data_string)
-    df = pd.read_csv(data, sep='\s+')
+    # --- ⬇️ 여기가 수정된 부분입니다 ⬇️ ---
+    df = pd.read_csv(data, sep='\t') 
+    # --- ⬆️ 여기가 수정된 부분입니다 ⬆️ ---
     df = df.set_index('Country')
     return df
 
@@ -229,77 +230,69 @@ def calculate_dichotomies(country_data):
 
 def create_group_chart(data, title, types, colors):
     """기질 그룹별 맞춤형 막대 차트를 생성합니다."""
-    
-    # 1. 차트 데이터 준비
     chart_data = data.loc[types].reset_index()
     chart_data.columns = ['MBTI', 'Percentage']
     
-    # 2. 색상 스케일 정의
     color_scale = alt.Scale(domain=types, range=colors)
     
-    # 3. Altair 차트 생성
     base = alt.Chart(chart_data).encode(
-        x=alt.X('MBTI', sort=types, axis=None), # X축 라벨 숨김
-        y=alt.Y('Percentage', axis=alt.Axis(format='%', title='')), # Y축 서식, 제목 숨김
-        color=alt.Color('MBTI', scale=color_scale, legend=None), # 맞춤형 색상
+        x=alt.X('MBTI', sort=types, axis=None),
+        y=alt.Y('Percentage', axis=alt.Axis(format='%', title='')),
+        color=alt.Color('MBTI', scale=color_scale, legend=None),
         tooltip=[
             alt.Tooltip('MBTI', title='유형'),
             alt.Tooltip('Percentage', title='비율', format='.2%')
         ]
     ).properties(
-        title=title # 차트 제목 (예: 'Analysts (NT)')
+        title=title
     )
     
-    # 4. 막대(bar)와 텍스트(text) 결합
     bar = base.mark_bar()
     
     text = base.mark_text(
         align='center',
         baseline='bottom',
-        dy=-5, # 막대 상단에서 약간 위로
+        dy=-5,
         color='black'
     ).encode(
         text=alt.Text('Percentage', format='.1%'),
-        color=alt.value('black') # 텍스트 색상 고정
+        color=alt.value('black')
     )
     
     return bar + text
 
 # 4. 메인 앱 실행
 def main():
-    
-    # --- 타이틀 ---
     st.title("🌍 16 Personalities: 글로벌 대시보드")
     st.markdown("전 세계 국가별 MBTI 성격 유형 분포를 탐험해 보세요.")
     
     try:
         df = load_data()
         
-        # --- 사이드바 ---
         st.sidebar.title("🎨 대시보드 컨트롤")
         country_list = df.index.tolist()
+        
+        # 'South Korea'가 목록에 있는지 확인하고 기본값 설정
+        default_index = 0
+        if "South Korea" in country_list:
+            default_index = country_list.index("South Korea")
+            
         selected_country = st.sidebar.selectbox(
             "분석할 국가를 선택하세요:",
             country_list,
-            index=country_list.index("South Korea") # 기본값으로 'South Korea' 설정
+            index=default_index
         )
         
-        # --- 1. 국가별 상세 분석 ---
         st.header(f"📍 {selected_country} 국가 프로필")
         
         country_data = df.loc[selected_country]
         
-        # --- 1a. 핵심 지표 (KPIs) ---
         st.subheader("핵심 지표 (KPIs)")
         
-        # 4대 지표 계산
         d_scores = calculate_dichotomies(country_data)
-        
-        # 가장 흔한 유형 찾기
         top_type = country_data.idxmax()
         top_value = country_data.max()
         
-        # 5열로 메트릭 표시
         col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
@@ -337,12 +330,10 @@ def main():
                 help=f"인식(P): {d_scores['P']:.1%}, 판단(J): {d_scores['J']:.1%}"
             )
             
-        st.markdown("---") # 구분선
+        st.markdown("---")
         
-        # --- 1b. 기질별 분포 차트 ---
         st.subheader("유형별 상세 분포")
         
-        # 4열로 차트 배치
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -381,27 +372,23 @@ def main():
             )
             st.altair_chart(chart, use_container_width=True)
             
-        
-        st.markdown("---") # 구분선
+        st.markdown("---")
 
-        # --- 2. '놀라게 할' 보너스: 전체 국가 히트맵 ---
         st.header("✨ [보너스] 글로벌 MBTI 히트맵")
         st.markdown("전체 국가의 MBTI 분포를 한눈에 비교해 보세요. (차트를 클릭한 채로 드래그하여 탐색 가능)")
         
-        # 히트맵을 위한 데이터 재가공 (Melt)
         df_melted = df.reset_index().melt(
             id_vars='Country', 
             var_name='MBTI', 
             value_name='Percentage'
         )
         
-        # 히트맵 생성
         heatmap = alt.Chart(df_melted).mark_rect().encode(
             x=alt.X('MBTI', sort=df.columns.tolist(), title="MBTI 유형"),
             y=alt.Y('Country', title="국가"),
             color=alt.Color(
                 'Percentage', 
-                scale=alt.Scale(range='heatmap'), # 히트맵 색상 스케일
+                scale=alt.Scale(range='heatmap'),
                 legend=alt.Legend(title="비율", format=".1%")
             ),
             tooltip=[
@@ -409,7 +396,7 @@ def main():
                 alt.Tooltip('MBTI', title='유형'),
                 alt.Tooltip('Percentage', title='비율', format='.2%')
             ]
-        ).interactive() # 확대/축소/이동 가능하게
+        ).interactive()
         
         st.altair_chart(heatmap, use_container_width=True)
 
@@ -417,6 +404,5 @@ def main():
         st.error(f"데이터를 로드하거나 처리하는 중 오류가 발생했습니다: {e}")
         st.error("데이터 형식이 올바른지(Country 열 다음에 16개 유형이 오는지) 확인해 주세요.")
 
-# --- 앱 실행 ---
 if __name__ == "__main__":
     main()
