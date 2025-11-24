@@ -1,408 +1,449 @@
-import streamlit as st
-import pandas as pd
-import altair as alt
-import io
+import React, { useState, useEffect } from "react";
 
-# 0. 페이지 설정 (가장 먼저 실행되어야 함)
-st.set_page_config(
-    page_title="MBTI 글로벌 대시보드",
-    page_icon="🌍",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+// Kiosk Nutrition Planner - Single-file React component
+// - Tailwind CSS assumed available in the hosting environment
+// - Uses localStorage for saved profiles
+// - Basic food DB included for demo; in production, swap with server DB
 
-# 1. 모든 국가 데이터
-# (데이터 문자열은 이전과 동일하므로 공간 절약을 위해 여기서는 생략합니다)
-# (실제 코드에는 이전에 제공한 전체 data_string이 포함되어야 합니다)
-data_string = """Country	INFJ	ISFJ	INTP	ISFP	ENTP	INFP	ENTJ	ISTP	INTJ	ESFP	ESTJ	ENFP	ESTP	ISTJ	ENFJ	ESFJ
-Afghanistan	0.0463	0.061	0.0549	0.046	0.0495	0.0686	0.0511	0.0434	0.0431	0.0527	0.1188	0.0796	0.0652	0.0629	0.0562	0.1006
-Albania	0.0748	0.0449	0.0754	0.0334	0.0792	0.1045	0.0686	0.0233	0.0604	0.0405	0.0667	0.1045	0.0381	0.0418	0.0775	0.0665
-Algeria	0.08	0.0337	0.141	0.0377	0.0739	0.1556	0.0535	0.033	0.0896	0.0279	0.0327	0.0857	0.0241	0.032	0.0556	0.044
-Andorra	0.0791	0.0465	0.0512	0.0419	0.0372	0.1674	0.0465	0.0186	0.0326	0.0372	0.0605	0.1767	0.0187	0.0279	0.1163	0.0651
-Angola	0.0771	0.0717	0.0564	0.0403	0.0448	0.1112	0.0492	0.0322	0.0466	0.0547	0.0592	0.0798	0.0368	0.0404	0.0807	0.1192
-Antigua and Barbuda	0.0848	0.0853	0.0632	0.0592	0.047	0.1381	0.0279	0.0308	0.0328	0.0548	0.0421	0.1092	0.0245	0.0431	0.0632	0.094
-Argentina	0.0884	0.044	0.106	0.0416	0.0544	0.1875	0.0309	0.0255	0.0652	0.0366	0.0245	0.1338	0.0174	0.0342	0.0625	0.0476
-Armenia	0.0735	0.0472	0.0839	0.0268	0.0821	0.1138	0.0689	0.0197	0.069	0.0262	0.074	0.1057	0.027	0.0399	0.0792	0.0629
-Australia	0.0772	0.0826	0.0478	0.0583	0.0391	0.15	0.0215	0.0202	0.0273	0.0587	0.0355	0.1483	0.0212	0.0304	0.0778	0.1038
-Austria	0.0809	0.046	0.0906	0.0378	0.0657	0.1732	0.0347	0.0221	0.0525	0.0367	0.0384	0.1437	0.0226	0.0334	0.0664	0.0553
-Azerbaijan	0.0603	0.0561	0.0804	0.0372	0.0663	0.1062	0.0571	0.0285	0.0528	0.0471	0.0857	0.0856	0.0308	0.0578	0.0742	0.0735
-Bahamas	0.0847	0.0843	0.0633	0.0559	0.0483	0.132	0.0312	0.0318	0.0416	0.0341	0.0469	0.1077	0.0238	0.0535	0.0702	0.0906
-Bahrain	0.076	0.0597	0.0564	0.047	0.051	0.1367	0.0419	0.0234	0.0394	0.051	0.0513	0.1339	0.03	0.03	0.0826	0.0898
-Bangladesh	0.0697	0.06	0.0771	0.069	0.0449	0.1498	0.0295	0.0358	0.0418	0.0585	0.0442	0.1041	0.0314	0.0366	0.0639	0.0839
-Barbados	0.0911	0.101	0.0642	0.0517	0.0408	0.1497	0.0277	0.0272	0.0498	0.0398	0.0382	0.0954	0.0244	0.0486	0.0669	0.0836
-Belarus	0.0609	0.0524	0.1052	0.0412	0.0704	0.1135	0.0452	0.0468	0.0678	0.029	0.063	0.0941	0.0346	0.0664	0.0519	0.058
-Belgium	0.0761	0.0563	0.0771	0.0414	0.061	0.1708	0.0297	0.0209	0.0383	0.0444	0.036	0.16	0.0237	0.0288	0.0664	0.0691
-Belize	0.0831	0.0786	0.0599	0.0529	0.0472	0.1416	0.0217	0.022	0.0446	0.0583	0.037	0.1184	0.0299	0.039	0.0732	0.0925
-Bhutan	0.0646	0.0758	0.0526	0.0625	0.0232	0.1566	0.026	0.014	0.0189	0.0688	0.0597	0.139	0.0119	0.0238	0.0653	0.1369
-Bosnia and Herzegovina	0.0778	0.0346	0.1079	0.0286	0.0908	0.1375	0.0583	0.0209	0.0696	0.031	0.0479	0.1143	0.0294	0.0347	0.0686	0.0483
-Botswana	0.0808	0.0688	0.0713	0.0608	0.0519	0.1491	0.0342	0.0254	0.0401	0.0395	0.0431	0.1199	0.0228	0.0338	0.0745	0.0838
-Brazil	0.0938	0.049	0.0977	0.0383	0.0502	0.189	0.0275	0.0253	0.0645	0.0323	0.0278	0.1336	0.0186	0.0394	0.0631	0.0498
-Brunei	0.0835	0.086	0.0396	0.1041	0.0243	0.1952	0.0119	0.0246	0.0202	0.0772	0.0245	0.122	0.0189	0.0223	0.0558	0.09
-Bulgaria	0.0697	0.0391	0.1013	0.0321	0.09	0.1512	0.0536	0.0263	0.0553	0.0281	0.0495	0.1282	0.03	0.0365	0.0632	0.046
-Burkina Faso	0.0805	0.0503	0.0537	0.0503	0.0436	0.1007	0.0235	0.0302	0.0202	0.0906	0.0302	0.1744	0.0369	0.0202	0.1074	0.0939
-Cambodia	0.0733	0.0708	0.0427	0.068	0.037	0.1491	0.0218	0.0265	0.028	0.0681	0.0465	0.1273	0.0254	0.0321	0.0694	0.1139
-Cameroon	0.0719	0.0803	0.0377	0.0439	0.0402	0.1096	0.0414	0.0207	0.0353	0.0682	0.0737	0.0798	0.0268	0.039	0.0817	0.1498
-Canada	0.0843	0.0838	0.0592	0.0553	0.046	0.1574	0.0259	0.0229	0.035	0.0476	0.0356	0.1344	0.0221	0.0356	0.0721	0.0826
-Chile	0.0935	0.046	0.1041	0.0396	0.0503	0.1963	0.0265	0.027	0.0672	0.0309	0.0254	0.1321	0.016	0.0369	0.0615	0.0468
-China	0.056	0.0952	0.0571	0.0841	0.0435	0.1063	0.0303	0.0359	0.0374	0.0681	0.0541	0.0943	0.032	0.0474	0.0569	0.1016
-Colombia	0.069	0.0437	0.0861	0.0354	0.06	0.1372	0.0402	0.0226	0.0527	0.0452	0.043	0.1379	0.0249	0.0333	0.0844	0.0844
-Congo	0.0683	0.0763	0.0341	0.0382	0.0622	0.0502	0.0643	0.0322	0.0362	0.0602	0.0824	0.0924	0.0482	0.0542	0.0803	0.1205
-Costa Rica	0.0692	0.0502	0.0798	0.0375	0.0636	0.1383	0.0368	0.0216	0.0535	0.0447	0.0373	0.1549	0.0236	0.0379	0.0795	0.0716
-Croatia	0.0795	0.0411	0.0925	0.0321	0.077	0.1484	0.0474	0.0235	0.0605	0.0339	0.0478	0.128	0.0273	0.034	0.0713	0.0558
-Cuba	0.0434	0.0614	0.0542	0.0433	0.0903	0.1228	0.0252	0.0289	0.0216	0.0578	0.0289	0.1986	0.0072	0.0434	0.0686	0.1047
-Cyprus	0.0758	0.0512	0.0717	0.0384	0.0655	0.1384	0.0471	0.0208	0.0438	0.0414	0.0494	0.1295	0.0273	0.0353	0.0844	0.0797
-Czech Republic	0.0806	0.049	0.1004	0.0393	0.0699	0.164	0.0344	0.0294	0.061	0.0379	0.042	0.1183	0.0285	0.0404	0.0511	0.0538
-Congo (Kinshasa)	0.0683	0.0763	0.0341	0.0382	0.0622	0.0502	0.0643	0.0322	0.0362	0.0602	0.0824	0.0924	0.0482	0.0542	0.0803	0.1205
-Denmark	0.0834	0.0578	0.0709	0.047	0.0571	0.1621	0.0277	0.0245	0.0388	0.0482	0.0374	0.1497	0.0257	0.031	0.067	0.0719
-Djibouti	0.0769	0.0573	0.0654	0.0622	0.0491	0.0966	0.0491	0.036	0.0491	0.0425	0.0491	0.1211	0.0507	0.0508	0.0524	0.0916
-Dominica	0.0919	0.0786	0.0902	0.0563	0.0447	0.1474	0.0249	0.0249	0.0563	0.0373	0.0431	0.0936	0.0281	0.0389	0.058	0.0861
-Dominican Republic	0.0789	0.0634	0.0652	0.0438	0.0495	0.1409	0.0308	0.0208	0.0415	0.0541	0.0384	0.1469	0.0255	0.0317	0.0834	0.0854
-Ecuador	0.0647	0.05	0.0808	0.044	0.0642	0.1387	0.0323	0.0246	0.05	0.0577	0.0399	0.1465	0.0281	0.0339	0.0704	0.0741
-Egypt	0.0665	0.0531	0.0719	0.0518	0.0586	0.122	0.0467	0.0336	0.0497	0.0523	0.0524	0.1176	0.0348	0.041	0.0767	0.071
-El Salvador	0.0658	0.0487	0.0848	0.0403	0.059	0.1462	0.0341	0.0245	0.0553	0.0524	0.0409	0.1329	0.0242	0.0337	0.0678	0.0895
-Estonia	0.0839	0.0566	0.0921	0.0458	0.0616	0.1762	0.0307	0.0303	0.0459	0.0342	0.036	0.1325	0.0258	0.0393	0.0597	0.049
-Ethiopia	0.0599	0.0622	0.0677	0.0637	0.055	0.1152	0.0374	0.0295	0.0426	0.0667	0.0612	0.1	0.0263	0.0393	0.0684	0.1048
-Faroe Islands	0.0888	0.0627	0.0856	0.0899	0.0357	0.1973	0.0127	0.0234	0.0314	0.0564	0.0372	0.1169	0.0207	0.0297	0.0553	0.0564
-Fiji	0.077	0.0667	0.0371	0.0628	0.0409	0.1348	0.0246	0.0219	0.028	0.0651	0.0396	0.1464	0.0222	0.0232	0.0894	0.1205
-Finland	0.0817	0.0595	0.091	0.0541	0.0525	0.1808	0.0235	0.0335	0.0491	0.0434	0.0338	0.1258	0.0255	0.0416	0.0488	0.0554
-France	0.067	0.0587	0.0768	0.0536	0.0577	0.1465	0.0321	0.037	0.0418	0.0507	0.045	0.1293	0.035	0.0403	0.0611	0.0675
-Georgia	0.0644	0.0423	0.1066	0.0275	0.0848	0.1094	0.0649	0.0271	0.0778	0.031	0.0715	0.0907	0.0376	0.0531	0.0577	0.0535
-Germany	0.0851	0.0495	0.0934	0.0407	0.0595	0.1766	0.0335	0.0261	0.0533	0.0371	0.04	0.1266	0.0241	0.0362	0.0612	0.0568
-Ghana	0.066	0.109	0.0399	0.0617	0.0361	0.0768	0.0322	0.0269	0.0382	0.0592	0.0829	0.0706	0.0318	0.0543	0.062	0.1527
-Greece	0.079	0.0469	0.0874	0.0331	0.0743	0.1404	0.0539	0.023	0.0597	0.0314	0.0471	0.1274	0.0245	0.0365	0.0772	0.0581
-Grenada	0.0851	0.0741	0.0721	0.0556	0.0487	0.1078	0.0357	0.024	0.0542	0.0391	0.0542	0.1139	0.0234	0.0378	0.0803	0.0941
-Guatemala	0.0688	0.0541	0.0762	0.0364	0.0664	0.1339	0.0389	0.0207	0.0439	0.0513	0.0476	0.1463	0.0254	0.0335	0.0753	0.0815
-Guinea	0.0862	0.0891	0.0415	0.0704	0.0301	0.1197	0.0193	0.0193	0.0358	0.0755	0.0392	0.1191	0.0301	0.0295	0.0846	0.1106
-Guyana	0.0776	0.0796	0.0757	0.0571	0.0449	0.1432	0.0261	0.0313	0.0443	0.0489	0.0359	0.1	0.0316	0.0522	0.0691	0.0825
-Haiti	0.0748	0.0801	0.0341	0.0489	0.0577	0.1154	0.0453	0.0176	0.027	0.0612	0.0506	0.1353	0.0318	0.0429	0.0724	0.1048
-Honduras	0.0693	0.0519	0.0736	0.0417	0.0638	0.1417	0.0392	0.021	0.0465	0.0529	0.044	0.1307	0.0309	0.0304	0.0797	0.0831
-Hungary	0.0838	0.0489	0.0978	0.0332	0.0677	0.1569	0.0422	0.0233	0.0647	0.0316	0.0446	0.1215	0.0249	0.0404	0.0643	0.0541
-Iceland	0.0787	0.0582	0.0697	0.0486	0.0555	0.191	0.0256	0.0202	0.0334	0.0437	0.0245	0.1698	0.0192	0.0259	0.0706	0.0655
-India	0.0635	0.0538	0.0647	0.0543	0.0544	0.1344	0.033	0.0243	0.0348	0.068	0.0484	0.1355	0.0313	0.0281	0.0761	0.0953
-Indonesia	0.0758	0.0652	0.0499	0.0575	0.0435	0.1249	0.0303	0.0226	0.0384	0.0837	0.0507	0.1227	0.0337	0.0323	0.0677	0.1011
-Iraq	0.0716	0.0454	0.1053	0.042	0.0615	0.1088	0.0523	0.0324	0.0712	0.0411	0.0594	0.0941	0.0358	0.0427	0.0722	0.0642
-Ireland	0.0803	0.0691	0.061	0.0527	0.048	0.1716	0.0251	0.0188	0.0346	0.0512	0.0312	0.1563	0.0186	0.0274	0.0746	0.0796
-Israel	0.0778	0.0632	0.0742	0.0501	0.0536	0.1507	0.0334	0.025	0.0455	0.0471	0.0385	0.1376	0.0218	0.0376	0.0717	0.072
-Italy	0.0967	0.0451	0.1007	0.032	0.0603	0.1742	0.0394	0.0218	0.0694	0.0281	0.0334	0.1286	0.0173	0.0359	0.0697	0.0475
-Jamaica	0.0826	0.0822	0.0725	0.0536	0.0465	0.13	0.0362	0.0323	0.0489	0.0449	0.0506	0.0854	0.0299	0.0495	0.0687	0.0862
-Japan	0.0679	0.0682	0.0719	0.0674	0.0519	0.1644	0.0257	0.0287	0.037	0.0602	0.0339	0.1378	0.0262	0.0357	0.0559	0.0675
-Jordan	0.0656	0.042	0.0776	0.039	0.0763	0.1092	0.0591	0.0244	0.0502	0.0493	0.0612	0.126	0.0369	0.0329	0.0771	0.0729
-Kazakhstan	0.0643	0.0549	0.0753	0.0363	0.0706	0.0958	0.0521	0.0317	0.0542	0.0423	0.0811	0.0976	0.0389	0.0591	0.0706	0.075
-Kenya	0.084	0.076	0.0592	0.0472	0.0548	0.1118	0.0393	0.0206	0.0427	0.0551	0.0506	0.1102	0.0279	0.0332	0.0817	0.1055
-Kuwait	0.0771	0.0529	0.0671	0.048	0.0586	0.1403	0.0419	0.0259	0.0454	0.0521	0.049	0.1274	0.0303	0.0347	0.0773	0.0722
-Kyrgyzstan	0.0475	0.0497	0.092	0.0386	0.0549	0.1038	0.0549	0.0304	0.0594	0.0453	0.0549	0.1046	0.0408	0.0504	0.0809	0.092
-Laos	0.0643	0.0659	0.0643	0.0452	0.0365	0.1365	0.0262	0.0183	0.0262	0.0794	0.0413	0.1524	0.0254	0.0428	0.073	0.1024
-Latvia	0.0697	0.0481	0.1124	0.046	0.0779	0.1601	0.0352	0.0398	0.0568	0.0338	0.0455	0.1141	0.0323	0.0438	0.0462	0.0385
-Lebanon	0.0665	0.0379	0.0635	0.0266	0.0872	0.1015	0.0641	0.0174	0.0451	0.0501	0.0681	0.1356	0.0404	0.0263	0.0909	0.0786
-Lesotho	0.064	0.115	0.0443	0.0626	0.0516	0.1018	0.032	0.0415	0.0451	0.04	0.0655	0.0676	0.0363	0.064	0.0589	0.1098
-Libya	0.0848	0.0614	0.0828	0.0451	0.0598	0.1208	0.043	0.0344	0.0705	0.0422	0.0467	0.1015	0.0258	0.0422	0.0688	0.0704
-Lithuania	0.0673	0.0407	0.1274	0.0472	0.0716	0.1754	0.0359	0.0404	0.064	0.028	0.0393	0.1073	0.028	0.0443	0.0477	0.0356
-Luxembourg	0.0765	0.0607	0.0742	0.0402	0.0575	0.1445	0.0334	0.0285	0.0476	0.0422	0.0472	0.1336	0.0276	0.0352	0.0754	0.0757
-Madagascar	0.0542	0.0616	0.104	0.0478	0.0607	0.1546	0.035	0.0194	0.0561	0.0442	0.0414	0.1315	0.0249	0.0349	0.0635	0.0662
-Malawi	0.0691	0.0743	0.0494	0.0517	0.048	0.1237	0.0404	0.0216	0.0344	0.0578	0.0447	0.1223	0.0291	0.0419	0.0715	0.12
-Malaysia	0.0713	0.0952	0.0379	0.0923	0.0282	0.1551	0.0152	0.0231	0.0214	0.089	0.0351	0.1181	0.0247	0.0286	0.0544	0.1102
-Maldives	0.0947	0.056	0.0722	0.0643	0.0459	0.2081	0.0198	0.0242	0.0411	0.0472	0.0327	0.1219	0.0179	0.0257	0.0686	0.0599
-Mali	0.0504	0.0969	0.0814	0.0504	0.0427	0.1008	0.0271	0.0272	0.0427	0.0659	0.0698	0.0969	0.0232	0.0388	0.0775	0.1124
-Malta	0.088	0.0648	0.0769	0.0456	0.0563	0.1621	0.0345	0.0193	0.0429	0.0427	0.0347	0.1327	0.0205	0.0256	0.078	0.0752
-Mauritius	0.0738	0.0558	0.0642	0.039	0.0542	0.1379	0.0408	0.0223	0.0406	0.048	0.051	0.1318	0.0256	0.0316	0.0818	0.1017
-Mexico	0.0669	0.0413	0.0879	0.0356	0.0681	0.1401	0.0398	0.0231	0.0531	0.0476	0.0434	0.1422	0.027	0.0346	0.0753	0.0739
-Monaco	0.0451	0.0502	0.0551	0.0301	0.0777	0.1178	0.0426	0.015	0.025	0.0401	0.0652	0.1429	0.0351	0.0376	0.1103	0.1103
-Mongolia	0.0653	0.0524	0.0726	0.049	0.0558	0.1067	0.0478	0.0347	0.0587	0.052	0.0671	0.0966	0.0342	0.0483	0.0823	0.0764
-Montenegro	0.0666	0.0369	0.1007	0.0275	0.0999	0.1272	0.0735	0.0189	0.0575	0.029	0.0635	0.1154	0.028	0.0285	0.0765	0.0506
-Morocco	0.0682	0.0314	0.1297	0.0336	0.0845	0.1516	0.0528	0.0287	0.0692	0.0326	0.0368	0.1177	0.029	0.0326	0.0597	0.0419
-Mozambique	0.073	0.0662	0.0599	0.0491	0.0553	0.1164	0.0336	0.0171	0.0376	0.0525	0.0513	0.1585	0.028	0.0353	0.0856	0.0804
-Myanmar	0.058	0.0794	0.0603	0.0753	0.0399	0.1414	0.0224	0.036	0.0315	0.0737	0.0514	0.1095	0.0326	0.0456	0.0452	0.0975
-Namibia	0.0776	0.0787	0.0605	0.0571	0.0488	0.137	0.0381	0.0224	0.0347	0.0506	0.0434	0.1326	0.0288	0.033	0.0762	0.0804
-Nepal	0.0705	0.0479	0.081	0.0585	0.0507	0.1887	0.0299	0.0232	0.0377	0.059	0.0337	0.1365	0.0274	0.0215	0.0667	0.0673
-Netherlands	0.0774	0.0582	0.0631	0.0427	0.0566	0.1603	0.0283	0.0209	0.036	0.0551	0.0388	0.1602	0.0263	0.0281	0.0687	0.0791
-New Zealand	0.0781	0.088	0.046	0.0597	0.0373	0.1502	0.0203	0.0198	0.0268	0.0603	0.0332	0.1502	0.0198	0.0294	0.078	0.1029
-Nicaragua	0.0527	0.0539	0.0536	0.0334	0.047	0.0893	0.0338	0.0227	0.0309	0.0682	0.057	0.1287	0.0292	0.0305	0.0859	0.1832
-Niger	0.0697	0.0905	0.0403	0.0501	0.0369	0.0812	0.0402	0.0216	0.0407	0.0532	0.085	0.0719	0.0289	0.0439	0.0738	0.1723
-Nigeria	0.0697	0.0905	0.0403	0.0501	0.0369	0.0812	0.0402	0.0216	0.0407	0.0532	0.085	0.0719	0.0289	0.0439	0.0738	0.1723
-Macedonia	0.0803	0.0387	0.0875	0.0293	0.0887	0.1205	0.0632	0.0209	0.0613	0.0291	0.0645	0.1052	0.0319	0.038	0.0814	0.0595
-Norway	0.0825	0.0629	0.0716	0.0483	0.0574	0.1556	0.0283	0.0255	0.0409	0.0505	0.0373	0.1402	0.0252	0.0329	0.0652	0.0755
-Oman	0.0647	0.0626	0.0598	0.0552	0.0487	0.1238	0.0378	0.0238	0.0337	0.0611	0.0603	0.1223	0.0288	0.0322	0.072	0.1133
-Pakistan	0.0695	0.0578	0.0485	0.0568	0.0456	0.132	0.0304	0.0242	0.0296	0.0715	0.05	0.1291	0.0326	0.028	0.0841	0.1101
-Panama	0.0686	0.0514	0.078	0.0437	0.0559	0.1541	0.0314	0.0254	0.0434	0.0483	0.0389	0.151	0.0273	0.038	0.0743	0.0702
-Papua New Guinea	0.0862	0.0891	0.0415	0.0704	0.0301	0.1197	0.0193	0.0193	0.0358	0.0755	0.0392	0.1191	0.0301	0.0295	0.0846	0.1106
-Paraguay	0.0717	0.0402	0.1046	0.041	0.0684	0.1711	0.0419	0.0297	0.0727	0.0395	0.0345	0.1282	0.0203	0.0372	0.0589	0.0402
-Peru	0.0648	0.0455	0.0928	0.0371	0.0631	0.1559	0.0343	0.0252	0.0502	0.0433	0.0392	0.1484	0.0234	0.0306	0.0726	0.0734
-Philippines	0.0772	0.0737	0.0597	0.0724	0.0342	0.1627	0.0195	0.0253	0.0353	0.0751	0.0353	0.1104	0.0238	0.0307	0.0565	0.1085
-Poland	0.0756	0.0438	0.1241	0.0344	0.0784	0.155	0.0396	0.033	0.0764	0.0274	0.0425	0.1051	0.0277	0.049	0.0478	0.0402
-Portugal	0.1004	0.055	0.0871	0.0492	0.0515	0.206	0.024	0.0238	0.0471	0.0349	0.023	0.1367	0.0184	0.0283	0.0649	0.0497
-Qatar	0.0676	0.0633	0.0558	0.059	0.0512	0.1384	0.0341	0.0233	0.0334	0.0603	0.0502	0.133	0.0286	0.0322	0.0745	0.0952
-South Korea	0.0625	0.0766	0.0628	0.0661	0.0504	0.1339	0.0273	0.0311	0.0375	0.0636	0.0456	0.126	0.0294	0.0428	0.0609	0.0835
-Moldova	0.0707	0.0425	0.0936	0.0294	0.0783	0.1129	0.0642	0.0332	0.0682	0.0296	0.0598	0.1063	0.0356	0.0475	0.0749	0.0535
-Romania	0.0705	0.0388	0.0947	0.0305	0.0879	0.133	0.0529	0.0252	0.0612	0.0316	0.0576	0.1245	0.0313	0.0401	0.0668	0.0536
-Russia	0.0582	0.047	0.1252	0.0394	0.0745	0.1345	0.0447	0.0422	0.0666	0.0321	0.057	0.0926	0.0352	0.0576	0.0476	0.0457
-Rwanda	0.0666	0.0745	0.0401	0.0437	0.046	0.0866	0.0475	0.0166	0.0321	0.0683	0.0796	0.1002	0.026	0.0353	0.0753	0.1617
-Saint Kitts and Nevis	0.099	0.0934	0.0427	0.0517	0.0269	0.1541	0.0349	0.0269	0.054	0.045	0.0338	0.1136	0.0202	0.0461	0.072	0.0855
-Saint Lucia	0.0889	0.0915	0.0802	0.0568	0.0408	0.1453	0.0295	0.0221	0.0451	0.0542	0.0382	0.0902	0.0252	0.0434	0.0646	0.0841
-Saint Vincent and the Grenadines	0.098	0.0663	0.0771	0.0515	0.0594	0.1671	0.0267	0.0336	0.0426	0.0485	0.0356	0.0999	0.0178	0.0356	0.0722	0.0682
-Saudi Arabia	0.0712	0.0543	0.0716	0.0522	0.0568	0.125	0.0455	0.0283	0.0511	0.0519	0.0565	0.1133	0.0322	0.0372	0.0719	0.0808
-Senegal	0.0741	0.0733	0.0776	0.042	0.0594	0.1118	0.0231	0.0168	0.0294	0.0546	0.0559	0.1531	0.0238	0.0322	0.0747	0.0986
-Serbia	0.066	0.0343	0.1053	0.0271	0.0977	0.1296	0.0584	0.023	0.0687	0.0283	0.058	0.1176	0.0323	0.0353	0.067	0.0511
-Seychelles	0.0634	0.0599	0.0589	0.0441	0.0633	0.1357	0.0351	0.0282	0.043	0.0497	0.0599	0.1516	0.0226	0.0339	0.0712	0.0792
-Singapore	0.0654	0.1155	0.0394	0.1041	0.0279	0.1556	0.0126	0.0243	0.0209	0.0868	0.0281	0.126	0.0216	0.0321	0.0452	0.0944
-Slovakia	0.0867	0.0494	0.0992	0.0401	0.0636	0.1632	0.0344	0.0251	0.0684	0.0368	0.041	0.1125	0.0275	0.039	0.0567	0.0563
-Slovenia	0.0862	0.0488	0.0837	0.0394	0.066	0.1614	0.0363	0.0236	0.053	0.041	0.0435	0.1304	0.0264	0.0344	0.0637	0.0622
-Somalia	0.0595	0.0803	0.0555	0.0653	0.0366	0.0791	0.0385	0.0445	0.0406	0.0693	0.0732	0.0797	0.03	0.0608	0.0523	0.1346
-South Africa	0.0782	0.0831	0.053	0.0437	0.0518	0.1212	0.0363	0.0185	0.0372	0.0464	0.051	0.1294	0.0232	0.0381	0.0871	0.1019
-Spain	0.0825	0.0503	0.0766	0.039	0.0603	0.1673	0.0302	0.0186	0.0421	0.0428	0.0301	0.1647	0.0198	0.0269	0.0815	0.0674
-Sri Lanka	0.0715	0.0518	0.0552	0.0475	0.0483	0.1338	0.0347	0.0199	0.0348	0.0608	0.0532	0.1434	0.0277	0.0254	0.0888	0.1032
-Sudan	0.0707	0.0482	0.081	0.0486	0.0601	0.1103	0.0527	0.032	0.0615	0.0522	0.058	0.1106	0.0332	0.0399	0.0719	0.0691
-Suriname	0.0858	0.0627	0.0657	0.0574	0.0427	0.1796	0.0307	0.021	0.0306	0.0422	0.0417	0.1198	0.0235	0.0331	0.0756	0.0881
-Sweden	0.0739	0.0593	0.0719	0.0501	0.0584	0.1459	0.0305	0.0278	0.0447	0.052	0.0419	0.1383	0.0284	0.0368	0.0644	0.0757
-Switzerland	0.0732	0.0568	0.0655	0.0388	0.0616	0.1442	0.037	0.0198	0.0414	0.048	0.0501	0.1486	0.0261	0.0332	0.0755	0.08
-Syria	0.0627	0.0372	0.098	0.0279	0.0909	0.1042	0.0691	0.0309	0.0823	0.0382	0.0609	0.1005	0.0354	0.0365	0.0709	0.0546
-Tajikistan	0.0341	0.0717	0.041	0.0683	0.058	0.1161	0.0376	0.0342	0.0342	0.0546	0.0751	0.1399	0.0273	0.0376	0.041	0.1297
-Thailand	0.0696	0.0841	0.0455	0.0645	0.037	0.1263	0.0255	0.0249	0.0335	0.0722	0.048	0.1213	0.0267	0.0412	0.0688	0.1108
-Trinidad and Tobago	0.092	0.0796	0.0645	0.0536	0.0454	0.1493	0.0311	0.024	0.0484	0.0438	0.0409	0.1069	0.0218	0.0413	0.0734	0.0838
-Tunisia	0.0698	0.0287	0.1251	0.034	0.0959	0.1623	0.0445	0.0227	0.0651	0.0312	0.0337	0.1253	0.0246	0.0227	0.0709	0.0432
-Turkey	0.061	0.0385	0.0985	0.036	0.0857	0.1253	0.0519	0.0253	0.0558	0.0424	0.0589	0.1197	0.0366	0.0354	0.0662	0.0628
-Uganda	0.0675	0.0859	0.0412	0.0546	0.0439	0.0945	0.0343	0.0214	0.036	0.0647	0.0651	0.1063	0.0298	0.042	0.0726	0.1402
-Ukraine	0.0561	0.052	0.0964	0.0333	0.0733	0.0997	0.0558	0.0382	0.0627	0.0326	0.0804	0.0977	0.0353	0.0553	0.0592	0.0718
-United Arab Emirates	0.0671	0.0617	0.0483	0.0508	0.053	0.1214	0.0379	0.0211	0.0319	0.0606	0.0583	0.1355	0.0292	0.0303	0.0833	0.1099
-United Kingdom	0.0798	0.0762	0.0591	0.0523	0.0485	0.1601	0.0258	0.0212	0.0323	0.0504	0.036	0.1437	0.0224	0.0303	0.0739	0.088
-Tanzania	0.0681	0.0619	0.0502	0.0487	0.0521	0.1099	0.0467	0.0255	0.0357	0.0569	0.0666	0.1182	0.0301	0.0415	0.0815	0.1065
-United States	0.0755	0.0758	0.0573	0.0515	0.0469	0.1507	0.0257	0.0225	0.0326	0.0479	0.038	0.1347	0.0232	0.0356	0.071	0.0831
-Uruguay	0.0901	0.0476	0.0993	0.0392	0.0529	0.1895	0.0284	0.0262	0.0567	0.0337	0.0301	0.1357	0.0197	0.0362	0.0659	0.0486
-Uzbekistan	0.049	0.0717	0.0627	0.029	0.079	0.0718	0.0681	0.029	0.0445	0.0409	0.1054	0.1017	0.0363	0.06	0.0654	0.0853
-Vanuatu	0.0837	0.0627	0.0293	0.0753	0.0503	0.1213	0.0126	0.021	0.0335	0.1046	0.067	0.1297	0.021	0.0377	0.0795	0.0837
-Vietnam	0.0615	0.0732	0.055	0.0718	0.0428	0.1447	0.0282	0.0279	0.0297	0.0656	0.0481	0.1193	0.0291	0.0342	0.0666	0.1024
-Yemen	0.0556	0.0479	0.0929	0.0383	0.069	0.1101	0.0498	0.0354	0.0546	0.0565	0.0594	0.1188	0.0325	0.0459	0.0689	0.0642
-Zambia	0.08	0.0819	0.0533	0.0542	0.0445	0.0977	0.0435	0.0203	0.0426	0.0559	0.063	0.0983	0.0264	0.0406	0.0726	0.1253
-Zimbabwe	0.0761	0.0741	0.0516	0.0436	0.0526	0.1111	0.0486	0.0204	0.0383	0.0505	0.0584	0.1134	0.0272	0.0372	0.0837	0.1134
-"""
+export default function KioskNutritionApp() {
+  // --- User inputs ---
+  const [age, setAge] = useState(30);
+  const [sex, setSex] = useState("male");
+  const [height, setHeight] = useState(175);
+  const [weight, setWeight] = useState(70);
+  const [activity, setActivity] = useState("moderate"); // sedentary, light, moderate, active
+  const [goal, setGoal] = useState("maintain"); // lose, maintain, gain
+  const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [allergies, setAllergies] = useState([]);
+  const [dietType, setDietType] = useState("omnivore");
+  const [cooking, setCooking] = useState("home");
+  const [budgetLevel, setBudgetLevel] = useState("medium");
 
-# 2. MBTI 기질 그룹 및 색상 정의
-TYPE_GROUPS = {
-    'Analysts (NT)': ['INTJ', 'INTP', 'ENTJ', 'ENTP'],
-    'Diplomats (NF)': ['INFJ', 'INFP', 'ENFJ', 'ENFP'],
-    'Sentinels (SJ)': ['ISTJ', 'ISFJ', 'ESTJ', 'ESFJ'],
-    'Explorers (SP)': ['ISTP', 'ISFP', 'ESTP', 'ESFP']
-}
+  // --- Computed targets ---
+  const [bmr, setBmr] = useState(0);
+  const [tdee, setTdee] = useState(0);
+  const [kcalTarget, setKcalTarget] = useState(2000);
+  const [macroTargets, setMacroTargets] = useState({ protein_g: 70, carbs_g: 250, fat_g: 70 });
+  const [fiberTarget, setFiberTarget] = useState(25);
+  const [sodiumLimit, setSodiumLimit] = useState(2300);
 
-GROUP_COLORS = {
-    'Analysts (NT)': ['#6c5ce7', '#a29bfe', '#81ecec', '#00cec9'],
-    'Diplomats (NF)': ['#00b894', '#55efc4', '#ffeaa7', '#fdcb6e'],
-    'Sentinels (SJ)': ['#0984e3', '#74b9ff', '#d63031', '#ff7675'],
-    'Explorers (SP)': ['#e17055', '#fab1a0', '#fd79a8', '#e84393']
-}
+  // --- Generated plan ---
+  const [plan, setPlan] = useState([]);
+  const [foodDB, setFoodDB] = useState(INITIAL_FOOD_DB);
 
-# 3. 데이터 로드 함수 (캐싱으로 성능 향상)
-@st.cache_data
-def load_data():
-    """
-    문자열 데이터를 읽어 Pandas DataFrame으로 변환합니다.
-    데이터가 탭(tab)으로 구분되어 있으므로 sep='\t'를 사용합니다.
-    """
-    data = io.StringIO(data_string)
-    # --- ⬇️ 여기가 수정된 부분입니다 ⬇️ ---
-    df = pd.read_csv(data, sep='\t') 
-    # --- ⬆️ 여기가 수정된 부분입니다 ⬆️ ---
-    df = df.set_index('Country')
-    return df
+  // --- UI state ---
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [profileName, setProfileName] = useState("");
 
-@st.cache_data
-def calculate_dichotomies(country_data):
-    """선택된 국가의 4대 지표(E/I, S/N, T/F, J/P)를 계산합니다."""
-    i_types = [c for c in country_data.index if c.startswith('I')]
-    e_types = [c for c in country_data.index if c.startswith('E')]
-    n_types = [c for c in country_data.index if c[1] == 'N']
-    s_types = [c for c in country_data.index if c[1] == 'S']
-    t_types = [c for c in country_data.index if c[2] == 'T']
-    f_types = [c for c in country_data.index if c[2] == 'F']
-    j_types = [c for c in country_data.index if c[3] == 'J']
-    p_types = [c for c in country_data.index if c[3] == 'P']
-    
-    scores = {
-        'I': country_data[i_types].sum(),
-        'E': country_data[e_types].sum(),
-        'N': country_data[n_types].sum(),
-        'S': country_data[s_types].sum(),
-        'T': country_data[t_types].sum(),
-        'F': country_data[f_types].sum(),
-        'J': country_data[j_types].sum(),
-        'P': country_data[p_types].sum()
+  useEffect(() => {
+    calculateTargets();
+  }, [age, sex, height, weight, activity, goal]);
+
+  useEffect(() => {
+    // regenerate quick plan when targets change
+    generatePlan();
+  }, [kcalTarget, macroTargets, fiberTarget, sodiumLimit, foodDB]);
+
+  // --- Calculation helpers ---
+  function calcBMR({ sex, weight, height, age }) {
+    // Mifflin-St Jeor
+    if (sex === "male") {
+      return 10 * weight + 6.25 * height - 5 * age + 5;
+    } else {
+      return 10 * weight + 6.25 * height - 5 * age - 161;
     }
-    return scores
+  }
 
-def create_group_chart(data, title, types, colors):
-    """기질 그룹별 맞춤형 막대 차트를 생성합니다."""
-    chart_data = data.loc[types].reset_index()
-    chart_data.columns = ['MBTI', 'Percentage']
-    
-    color_scale = alt.Scale(domain=types, range=colors)
-    
-    base = alt.Chart(chart_data).encode(
-        x=alt.X('MBTI', sort=types, axis=None),
-        y=alt.Y('Percentage', axis=alt.Axis(format='%', title='')),
-        color=alt.Color('MBTI', scale=color_scale, legend=None),
-        tooltip=[
-            alt.Tooltip('MBTI', title='유형'),
-            alt.Tooltip('Percentage', title='비율', format='.2%')
-        ]
-    ).properties(
-        title=title
-    )
-    
-    bar = base.mark_bar()
-    
-    text = base.mark_text(
-        align='center',
-        baseline='bottom',
-        dy=-5,
-        color='black'
-    ).encode(
-        text=alt.Text('Percentage', format='.1%'),
-        color=alt.value('black')
-    )
-    
-    return bar + text
+  function activityFactor(level) {
+    switch (level) {
+      case "sedentary":
+        return 1.2;
+      case "light":
+        return 1.375;
+      case "moderate":
+        return 1.55;
+      case "active":
+        return 1.725;
+      default:
+        return 1.55;
+    }
+  }
 
-# 4. 메인 앱 실행
-def main():
-    st.title("🌍 16 Personalities: 글로벌 대시보드")
-    st.markdown("전 세계 국가별 MBTI 성격 유형 분포를 탐험해 보세요.")
-    
-    try:
-        df = load_data()
-        
-        st.sidebar.title("🎨 대시보드 컨트롤")
-        country_list = df.index.tolist()
-        
-        # 'South Korea'가 목록에 있는지 확인하고 기본값 설정
-        default_index = 0
-        if "South Korea" in country_list:
-            default_index = country_list.index("South Korea")
-            
-        selected_country = st.sidebar.selectbox(
-            "분석할 국가를 선택하세요:",
-            country_list,
-            index=default_index
-        )
-        
-        st.header(f"📍 {selected_country} 국가 프로필")
-        
-        country_data = df.loc[selected_country]
-        
-        st.subheader("핵심 지표 (KPIs)")
-        
-        d_scores = calculate_dichotomies(country_data)
-        top_type = country_data.idxmax()
-        top_value = country_data.max()
-        
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        with col1:
-            st.metric(
-                label="👑 가장 흔한 유형",
-                value=top_type,
-                delta=f"{top_value:.1%}"
-            )
-        with col2:
-            st.metric(
-                label="E (외향) vs I (내향)",
-                value=f"{d_scores['I']:.1%}",
-                delta=f"{d_scores['I'] - d_scores['E']:+.1%} (I)",
-                help=f"내향(I): {d_scores['I']:.1%}, 외향(E): {d_scores['E']:.1%}"
-            )
-        with col3:
-            st.metric(
-                label="S (감각) vs N (직관)",
-                value=f"{d_scores['N']:.1%}",
-                delta=f"{d_scores['N'] - d_scores['S']:+.1%} (N)",
-                help=f"직관(N): {d_scores['N']:.1%}, 감각(S): {d_scores['S']:.1%}"
-            )
-        with col4:
-            st.metric(
-                label="T (사고) vs F (감정)",
-                value=f"{d_scores['F']:.1%}",
-                delta=f"{d_scores['F'] - d_scores['T']:+.1%} (F)",
-                help=f"감정(F): {d_scores['F']:.1%}, 사고(T): {d_scores['T']:.1%}"
-            )
-        with col5:
-            st.metric(
-                label="J (판단) vs P (인식)",
-                value=f"{d_scores['P']:.1%}",
-                delta=f"{d_scores['P'] - d_scores['J']:+.1%} (P)",
-                help=f"인식(P): {d_scores['P']:.1%}, 판단(J): {d_scores['J']:.1%}"
-            )
-            
-        st.markdown("---")
-        
-        st.subheader("유형별 상세 분포")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            chart = create_group_chart(
-                country_data, 
-                'Analysts (NT)', 
-                TYPE_GROUPS['Analysts (NT)'], 
-                GROUP_COLORS['Analysts (NT)']
-            )
-            st.altair_chart(chart, use_container_width=True)
-            
-        with col2:
-            chart = create_group_chart(
-                country_data, 
-                'Diplomats (NF)', 
-                TYPE_GROUPS['Diplomats (NF)'], 
-                GROUP_COLORS['Diplomats (NF)']
-            )
-            st.altair_chart(chart, use_container_width=True)
-            
-        with col3:
-            chart = create_group_chart(
-                country_data, 
-                'Sentinels (SJ)', 
-                TYPE_GROUPS['Sentinels (SJ)'], 
-                GROUP_COLORS['Sentinels (SJ)']
-            )
-            st.altair_chart(chart, use_container_width=True)
-            
-        with col4:
-            chart = create_group_chart(
-                country_data, 
-                'Explorers (SP)', 
-                TYPE_GROUPS['Explorers (SP)'], 
-                GROUP_COLORS['Explorers (SP)']
-            )
-            st.altair_chart(chart, use_container_width=True)
-            
-        st.markdown("---")
+  function calculateTargets() {
+    const b = calcBMR({ sex, weight, height, age });
+    setBmr(Math.round(b));
+    const t = Math.round(b * activityFactor(activity));
+    setTdee(t);
 
-        st.header("✨ [보너스] 글로벌 MBTI 히트맵")
-        st.markdown("전체 국가의 MBTI 분포를 한눈에 비교해 보세요. (차트를 클릭한 채로 드래그하여 탐색 가능)")
-        
-        df_melted = df.reset_index().melt(
-            id_vars='Country', 
-            var_name='MBTI', 
-            value_name='Percentage'
-        )
-        
-        heatmap = alt.Chart(df_melted).mark_rect().encode(
-            x=alt.X('MBTI', sort=df.columns.tolist(), title="MBTI 유형"),
-            y=alt.Y('Country', title="국가"),
-            color=alt.Color(
-                'Percentage', 
-                scale=alt.Scale(range='heatmap'),
-                legend=alt.Legend(title="비율", format=".1%")
-            ),
-            tooltip=[
-                alt.Tooltip('Country', title='국가'),
-                alt.Tooltip('MBTI', title='유형'),
-                alt.Tooltip('Percentage', title='비율', format='.2%')
-            ]
-        ).interactive()
-        
-        st.altair_chart(heatmap, use_container_width=True)
+    // goal adjustments
+    let kcal = t;
+    if (goal === "lose") kcal = Math.max(1200, t - 500);
+    if (goal === "gain") kcal = t + 300;
+    setKcalTarget(kcal);
 
-    except Exception as e:
-        st.error(f"데이터를 로드하거나 처리하는 중 오류가 발생했습니다: {e}")
-        st.error("데이터 형식이 올바른지(Country 열 다음에 16개 유형이 오는지) 확인해 주세요.")
+    // macros: default distribution carb 50%, protein based on weight, fat rest
+    const protein_g = Math.round((goal === "gain" ? 1.4 : goal === "lose" ? 1.2 : 1.1) * weight);
+    const protein_kcal = protein_g * 4;
+    const carbs_kcal = Math.round(kcal * 0.5);
+    const carbs_g = Math.round(carbs_kcal / 4);
+    const fat_kcal = kcal - (protein_kcal + carbs_kcal);
+    const fat_g = Math.round(fat_kcal / 9);
 
-if __name__ == "__main__":
-    main()
+    setMacroTargets({ protein_g, carbs_g, fat_g });
+
+    // fiber target: 14 g per 1000 kcal
+    setFiberTarget(Math.round((kcal / 1000) * 14));
+  }
+
+  // --- Simple planner ---
+  // Greedy meal assembling by matching protein first then carbs and fats
+  function generatePlan() {
+    // Build filtered food list by allergies/diet
+    const avail = foodDB.filter((f) => {
+      if (allergies.some((a) => f.allergens?.includes(a))) return false;
+      if (dietType === "vegetarian" && f.type === "meat") return false;
+      if (dietType === "vegan" && f.type !== "plant") return false;
+      return true;
+    });
+
+    // Distribute kcal per meal: simple heuristic
+    const mealDistribution = getMealDistribution(mealsPerDay);
+    const mealPlans = mealDistribution.map((share, idx) => {
+      const targetKcal = Math.round(kcalTarget * share);
+      const slot = assembleMeal(avail, targetKcal, macroTargets, idx);
+      return slot;
+    });
+
+    setPlan(mealPlans);
+  }
+
+  function getMealDistribution(n) {
+    // default 3 meals + snack -> [0.25,0.35,0.30,0.10]
+    if (n === 2) return [0.55, 0.45];
+    if (n === 3) return [0.25, 0.4, 0.35];
+    if (n === 4) return [0.22, 0.33, 0.3, 0.15];
+    return Array(n).fill(1 / n);
+  }
+
+  function assembleMeal(availFoods, targetKcal, macros, mealIdx) {
+    // greedy: pick a protein-rich item, then fill with carb item, add veg
+    const meal = { items: [], kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, sodium_mg: 0 };
+
+    // 1) pick best protein candidate
+    const proteins = availFoods
+      .filter((f) => f.protein_g > 8)
+      .sort((a, b) => b.protein_g - a.protein_g);
+    if (proteins.length) {
+      const p = proteins[mealIdx % proteins.length];
+      addFoodToMeal(meal, p, 1);
+    }
+
+    // 2) add carb source
+    const carbs = availFoods
+      .filter((f) => f.carbs_g > 15)
+      .sort((a, b) => b.carbs_g - a.carbs_g);
+    if (carbs.length && meal.kcal < targetKcal) {
+      const c = carbs[(mealIdx + 1) % carbs.length];
+      addFoodToMeal(meal, c, 1);
+    }
+
+    // 3) add veg/fruit for fiber and micronutrients
+    const vegs = availFoods.filter((f) => f.type === "veg" || f.type === "fruit").slice(0, 2);
+    vegs.forEach((v) => addFoodToMeal(meal, v, 1));
+
+    // 4) small nuts or dairy for fats
+    const fats = availFoods.filter((f) => f.fat_g >= 5).slice(0, 1);
+    fats.forEach((f) => addFoodToMeal(meal, f, 1));
+
+    // 5) if kcal short, add extra carb portion
+    while (meal.kcal < targetKcal - 80) {
+      const filler = carbs[0] || availFoods[0];
+      if (!filler) break;
+      addFoodToMeal(meal, filler, 0.5);
+      if (meal.items.length > 8) break;
+    }
+
+    return meal;
+  }
+
+  function addFoodToMeal(meal, food, portions = 1) {
+    const mult = portions;
+    meal.items.push({ ...food, portions: mult });
+    meal.kcal += Math.round((food.kcal || 0) * mult);
+    meal.protein_g += Math.round((food.protein_g || 0) * mult);
+    meal.carbs_g += Math.round((food.carbs_g || 0) * mult);
+    meal.fat_g += Math.round((food.fat_g || 0) * mult);
+    meal.fiber_g += Math.round((food.fiber_g || 0) * mult);
+    meal.sodium_mg += Math.round((food.sodium_mg || 0) * mult);
+  }
+
+  // --- Profile save/load ---
+  function saveProfile() {
+    const profiles = JSON.parse(localStorage.getItem("kiosk_profiles") || "[]");
+    const p = {
+      name: profileName || `user_${Date.now()}`,
+      age,
+      sex,
+      height,
+      weight,
+      activity,
+      goal,
+      mealsPerDay,
+      allergies,
+      dietType,
+      cooking,
+      budgetLevel,
+      createdAt: new Date().toISOString(),
+    };
+    profiles.push(p);
+    localStorage.setItem("kiosk_profiles", JSON.stringify(profiles));
+    alert("프로필이 저장되었습니다.");
+  }
+
+  function loadProfiles() {
+    const profiles = JSON.parse(localStorage.getItem("kiosk_profiles") || "[]");
+    return profiles;
+  }
+
+  // --- Utility: export plan as QR/data URL (simple JSON) ---
+  function exportPlanAsQR() {
+    const payload = { kcalTarget, macroTargets, plan, date: new Date().toISOString() };
+    const json = encodeURIComponent(JSON.stringify(payload));
+    // For demo, create a data URL linking to a JSON blob. In production, replace with QR library.
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "meal_plan.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // --- Food DB editor (simple) ---
+  function addDemoFood() {
+    const sample = {
+      id: Date.now(),
+      name: "두부(150g)",
+      serving: "150g",
+      kcal: 150,
+      protein_g: 18,
+      carbs_g: 4,
+      fat_g: 8,
+      fiber_g: 2,
+      sodium_mg: 10,
+      type: "plant",
+      allergens: ["soy"],
+    };
+    setFoodDB((s) => [sample, ...s]);
+  }
+
+  // --- Rendering helpers ---
+  function renderMealCard(meal, idx) {
+    return (
+      <div key={idx} className="p-4 border rounded-lg shadow-sm bg-white">
+        <h4 className="font-semibold">{mealsPerDay === 2 && idx === 0 ? "아침/점심" : `끼니 ${idx + 1}`} </h4>
+        <div className="text-sm text-gray-600">칼로리: {meal.kcal} kcal · 단백질: {meal.protein_g} g · 탄수: {meal.carbs_g} g · 지방: {meal.fat_g} g</div>
+        <ul className="mt-2 space-y-1">
+          {meal.items.map((it, i) => (
+            <li key={i} className="flex items-center justify-between">
+              <div>
+                <div className="text-sm">{it.name} {it.portions !== 1 ? `×${it.portions}` : ""}</div>
+                <div className="text-xs text-gray-500">서빙: {it.serving || "-"}</div>
+              </div>
+              <div className="text-xs text-gray-500">{it.kcal} kcal</div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  // --- Main JSX ---
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6">
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold">영양식 키오스크 - 맞춤 식단 설계</h1>
+          <p className="text-sm text-gray-600">기본 정보를 입력하면 하루 권장 섭취량에 맞춘 1일 식단을 제안합니다.</p>
+        </header>
+
+        <main className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Left: form */}
+          <section className="col-span-1 p-4 bg-white rounded-lg shadow">
+            <h2 className="font-semibold mb-3">기본 정보</h2>
+            <div className="space-y-2 text-sm">
+              <div className="flex gap-2">
+                <label className="w-24">나이</label>
+                <input type="number" className="flex-1 p-2 border rounded" value={age} onChange={(e) => setAge(Number(e.target.value))} />
+              </div>
+              <div className="flex gap-2">
+                <label className="w-24">성별</label>
+                <select value={sex} onChange={(e) => setSex(e.target.value)} className="flex-1 p-2 border rounded">
+                  <option value="male">남성</option>
+                  <option value="female">여성</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <label className="w-24">키(cm)</label>
+                <input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="flex-1 p-2 border rounded" />
+              </div>
+              <div className="flex gap-2">
+                <label className="w-24">체중(kg)</label>
+                <input type="number" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="flex-1 p-2 border rounded" />
+              </div>
+
+              <div className="flex gap-2">
+                <label className="w-24">활동량</label>
+                <select value={activity} onChange={(e) => setActivity(e.target.value)} className="flex-1 p-2 border rounded">
+                  <option value="sedentary">거의 운동하지 않음</option>
+                  <option value="light">가벼운 활동</option>
+                  <option value="moderate">보통</option>
+                  <option value="active">활발</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <label className="w-24">목표</label>
+                <select value={goal} onChange={(e) => setGoal(e.target.value)} className="flex-1 p-2 border rounded">
+                  <option value="maintain">유지</option>
+                  <option value="lose">감량</option>
+                  <option value="gain">증량(근육)</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <label className="w-24">끼니수</label>
+                <select value={mealsPerDay} onChange={(e) => setMealsPerDay(Number(e.target.value))} className="flex-1 p-2 border rounded">
+                  <option value={2}>2</option>
+                  <option value={3}>3</option>
+                  <option value={4}>4</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 items-start">
+                <label className="w-24">알레르기</label>
+                <div className="flex-1 space-y-1 text-xs">
+                  <label className="inline-flex items-center"><input type="checkbox" onChange={(e) => toggleAllergy("milk", e.target.checked)} /> 우유</label>
+                  <label className="inline-flex items-center"><input type="checkbox" onChange={(e) => toggleAllergy("egg", e.target.checked)} /> 난류</label>
+                  <label className="inline-flex items-center"><input type="checkbox" onChange={(e) => toggleAllergy("nuts", e.target.checked)} /> 견과류</label>
+                  <label className="inline-flex items-center"><input type="checkbox" onChange={(e) => toggleAllergy("soy", e.target.checked)} /> 콩/대두</label>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <label className="w-24">식단 타입</label>
+                <select value={dietType} onChange={(e) => setDietType(e.target.value)} className="flex-1 p-2 border rounded">
+                  <option value="omnivore">일반(잡식)</option>
+                  <option value="vegetarian">채식(락토/오보 가능)</option>
+                  <option value="vegan">비건</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <input type="text" placeholder="프로필 이름(선택)" value={profileName} onChange={(e) => setProfileName(e.target.value)} className="flex-1 p-2 border rounded" />
+                <button onClick={saveProfile} className="px-3 py-2 bg-blue-600 text-white rounded">저장</button>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button onClick={calculateTargets} className="flex-1 p-2 border rounded">목표 재계산</button>
+                <button onClick={generatePlan} className="flex-1 p-2 border rounded">식단 재생성</button>
+              </div>
+
+              <div className="pt-2 text-xs text-gray-600">
+                <button onClick={() => setShowAdvanced((s) => !s)} className="underline">고급 옵션 {showAdvanced ? "접기" : "펼치기"}</button>
+              </div>
+
+              {showAdvanced && (
+                <div className="mt-2 text-xs space-y-2">
+                  <div className="flex gap-2"><label className="w-24">예산</label>
+                    <select value={budgetLevel} onChange={(e) => setBudgetLevel(e.target.value)} className="flex-1 p-2 border rounded">
+                      <option value="low">저예산</option>
+                      <option value="medium">중간</option>
+                      <option value="high">여유</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2"><label className="w-24">조리</label>
+                    <select value={cooking} onChange={(e) => setCooking(e.target.value)} className="flex-1 p-2 border rounded">
+                      <option value="home">직접 조리</option>
+                      <option value="microwave">전자레인지 전용</option>
+                      <option value="takeout">배달/테이크아웃</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Middle: targets & plan */}
+          <section className="col-span-1 md:col-span-2 p-4 bg-white rounded-lg shadow space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="font-semibold">오늘의 영양 목표</h2>
+                <div className="text-sm text-gray-600">BMR: {bmr} kcal · TDEE: {tdee} kcal</div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">{kcalTarget} kcal / 일</div>
+                <div className="text-sm text-gray-600">단백질 {macroTargets.protein_g}g · 탄수 {macroTargets.carbs_g}g · 지방 {macroTargets.fat_g}g · 설유 {fiberTarget}g</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <h3 className="font-medium">추천 식단 (끼니별)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {plan.length ? plan.map((m, i) => renderMealCard(m, i)) : <div className="p-4 border rounded">설정에 맞는 식단을 생성하세요.</div>}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-medium">도움 기능</h3>
+                <div className="p-3 border rounded">
+                  <div className="flex gap-2">
+                    <button className="flex-1 p-2 bg-green-600 text-white rounded" onClick={exportPlanAsQR}>식단 내보내기(JSON)</button>
+                    <button className="flex-1 p-2 border rounded" onClick={addDemoFood}>DB에 샘플 추가</button>
+                  </div>
+                  <div className="mt-3 text-xs text-gray-600">
+                    알레르기·종교 필터가 적용됩니다. 특정 재료를 누르면 대체 옵션을 보여줍니다.
+                  </div>
+                </div>
+
+                <div className="p-3 border rounded">
+                  <h4 className="font-semibold">레시피 및 조리</h4>
+                  <div className="text-sm text-gray-600">각 끼니 카드에서 '레시피 보기'를 누르면 조리시간과 난이도를 제공합니다. 전자레인지 전용 옵션을 선택하면 간단 조리법으로 대체됩니다.</div>
+                </div>
+
+              </div>
+            </div>
+
+          </section>
+        </main>
+
+        <footer className="mt-6 text-sm text-gray-500 text-center">데모용 앱 — 상용 서비스 개발시 KDRIs(한국인 영양섭취기준)와 보건당국 권고를 반드시 참조하세요.</footer>
+      </div>
+    </div>
+  );
+
+  // --- small helper functions defined after JSX to keep above flow readable ---
+  function toggleAllergy(name, checked) {
+    setAllergies((s) => {
+      const set = new Set(s);
+      if (checked) set.add(name);
+      else set.delete(name);
+      return Array.from(set);
+    });
+  }
+}
+
+// --- Demo food DB ---
+const INITIAL_FOOD_DB = [
+  { id: 1, name: "닭가슴살(구이) 100g", serving: "100g", kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6, fiber_g: 0, sodium_mg: 60, type: "meat", allergens: [] },
+  { id: 2, name: "현미밥 150g", serving: "150g", kcal: 210, protein_g: 4.4, carbs_g: 45, fat_g: 1.8, fiber_g: 2.8, sodium_mg: 5, type: "grain", allergens: [] },
+  { id: 3, name: "연어(구이) 100g", serving: "100g", kcal: 208, protein_g: 20, carbs_g: 0, fat_g: 13, fiber_g: 0, sodium_mg: 50, type: "meat", allergens: ["fish"] },
+  { id: 4, name: "두부 150g", serving: "150g", kcal: 144, protein_g: 17, carbs_g: 3.8, fat_g: 8.5, fiber_g: 1.2, sodium_mg: 12, type: "plant", allergens: ["soy"] },
+  { id: 5, name: "오트밀(건조) 60g", serving: "60g", kcal: 230, protein_g: 8, carbs_g: 39, fat_g: 4, fiber_g: 6, sodium_mg: 2, type: "grain", allergens: ["gluten"] },
+  { id: 6, name: "바나나(중) 1개", serving: "1개", kcal: 105, protein_g: 1.3, carbs_g: 27, fat_g: 0.3, fiber_g: 3.1, sodium_mg: 1, type: "fruit", allergens: [] },
+  { id: 7, name: "그릭 요거트 150g", serving: "150g", kcal: 120, protein_g: 12, carbs_g: 8, fat_g: 4, fiber_g: 0, sodium_mg: 55, type: "dairy", allergens: ["milk"] },
+  { id: 8, name: "혼합 견과류 20g", serving: "20g", kcal: 120, protein_g: 3, carbs_g: 4, fat_g: 10, fiber_g: 2, sodium_mg: 0, type: "nuts", allergens: ["nuts"] },
+  { id: 9, name: "브로콜리(찜) 100g", serving: "100g", kcal: 35, protein_g: 2.8, carbs_g: 7, fat_g: 0.4, fiber_g: 3, sodium_mg: 30, type: "veg", allergens: [] },
+  { id: 10, name: "고구마(중) 150g", serving: "150g", kcal: 130, protein_g: 2, carbs_g: 31, fat_g: 0.2, fiber_g: 3.8, sodium_mg: 36, type: "grain", allergens: [] },
+];
