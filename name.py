@@ -123,6 +123,75 @@ height, weight, age, gender, activity, goal):
 
 
 def calculate_macro_targets(weight, calorie_target, goal):
+
+    if goal in ["체중 감량", "체지방 감소"]:
+        protein_per_kg = 1.6
+        carb_ratio = 0.40
+    elif goal in ["근육 증가"]:
+        protein_per_kg = 2.0
+        carb_ratio = 0.45
+    else:  # 유지 / 체중 증가
+        protein_per_kg = 1.2
+        carb_ratio = 0.50
+
+    protein_g = protein_per_kg * weight
+    protein_kcal = protein_g * 4
+
+    remaining_kcal = max(0, calorie_target - protein_kcal)
+    carbs_kcal = remaining_kcal * carb_ratio
+    fat_kcal = remaining_kcal - carbs_kcal
+
+    carbs_g = carbs_kcal / 4
+    fat_g = fat_kcal / 9 if fat_kcal > 0 else 0
+
+    return {
+        "protein_g": round(protein_g),
+        "carbs_g": round(carbs_g),
+        "fat_g": round(fat_g),
+    }
+
+# =============================
+# USER INPUT SECTION
+# =============================
+with st.container():
+    with st.expander("👤 기본 정보 입력", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            height = st.number_input("키 (cm)", min_value=100, max_value=230, value=170)
+            weight = st.number_input("몸무게 (kg)", min_value=30, max_value=200, value=60)
+        with col2:
+            age = st.number_input("나이", min_value=10, max_value=90, value=18)
+            gender = st.selectbox("성별", ["남성", "여성"])
+
+        activity = st.selectbox("활동량", ["적음", "보통", "많음"])
+
+        goal = st.selectbox(
+            "현재 건강 목표",
+            ["체중 감량", "체중 증가", "유지", "체지방 감소", "근육 증가"],
+        )
+
+    col_pref1, col_pref2 = st.columns(2)
+    with col_pref1:
+        preferred_food = st.text_input("좋아하는 음식 / 오늘 땡기는 음식")
+        mood = st.selectbox(
+            "오늘 기분",
+            ["피곤함", "상쾌함", "보통", "스트레스", "기운 없음"],
+        )
+    with col_pref2:
+        allergy = st.text_input("알레르기 (예: 땅콩, 새우 등)")
+        religion = st.text_input("종교적/이념적 이유로 못 먹는 음식 (예: 돼지고기 등)")
+
+    st.markdown("---")
+
+# =============================
+# MEAL RECOMMENDER (균형 설계)
+# =============================
+def filter_foods(df, preferred_food, allergy, religion):
+    tmp = df.copy()
+
+    # 선호 음식이 실제로 DB에 있으면 그쪽만 필터링
+    if preferred_food:
+        mask_pref = tmp["food"].astype(str).str.
 contains(preferred_food, na=False)
 str.contains(allergy, na=False)]
 str.contains(religion, na=False)]
