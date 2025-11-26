@@ -6,10 +6,10 @@ import random
 # =============================
 # PAGE CONFIG
 # =============================
-st.set_page_config(page_title="Healicious Kiosk", layout="centered", page_icon="🥗", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Healicious Pro", layout="wide", page_icon="🥗", initial_sidebar_state="expanded")
 
 # =============================
-# BRAND
+# BRAND HEADER
 # =============================
 st.markdown("""
 <div style='display:flex; align-items:center; gap:14px; margin-bottom:30px;'>
@@ -18,7 +18,7 @@ st.markdown("""
         <rect rx="12" width="56" height="56" fill="%236ef0b0"/>
         <text x="50%" y="54%" font-size="30" text-anchor="middle" font-family="Inter" fill="white">H</text>
     </svg>' style='height:56px; border-radius:12px;'/>
-    <span style='font-size:36px; font-weight:800; font-family:Inter;'>Healicious</span>
+    <span style='font-size:36px; font-weight:800; font-family:Inter;'>Healicious Pro</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -39,7 +39,7 @@ body {background: #f5f7fa;}
 """, unsafe_allow_html=True)
 
 # =============================
-# FOOD DATABASE (샘플 30개 → 300개 확장 가능)
+# 300+ FOOD DATABASE (샘플)
 # =============================
 def generate_food_database(n=300):
     categories = ["주식","단백질","채소반찬","서브메뉴","간식","음료"]
@@ -58,9 +58,9 @@ def generate_food_database(n=300):
     data=[]
     for i in range(n):
         base=random.choice(sample_foods)
-        item = base.copy()
-        item["category"] = random.choice(categories)
-        item["food"] += f" {i+1}"
+        item=base.copy()
+        item["category"]=random.choice(categories)
+        item["food"]+=f" {i+1}"
         data.append(item)
     return pd.DataFrame(data)
 
@@ -70,21 +70,20 @@ FOOD_DB = generate_food_database(300)
 # USER INPUT
 # =============================
 st.markdown("<div class='input-title'>사용자 기본 정보 입력</div>", unsafe_allow_html=True)
-with st.container():
-    with st.expander("기본 정보 입력", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            height = st.number_input("키 (cm)", min_value=100, max_value=230)
-            weight = st.number_input("몸무게 (kg)", min_value=30, max_value=200)
-        with col2:
-            age = st.number_input("나이", min_value=10, max_value=90)
-            gender = st.selectbox("성별", ["남성", "여성"])
-        activity = st.selectbox("활동량", ["적음","보통","많음"])
-        goal = st.selectbox("건강 목표", ["체중 감량","체중 증가","유지","체지방 감소","근육 증가"])
-        preferred_food = st.text_input("좋아하는 음식 또는 오늘 떙기는 음식")
-        mood = st.selectbox("오늘 기분", ["피곤함","상쾌함","보통","스트레스","기운 없음"])
-        allergy = st.text_input("알레르기 (예: 땅콩, 새우 등)")
-        religion = st.text_input("종교적/이념적 이유로 못 먹는 음식")
+with st.expander("기본 정보 입력", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        height = st.number_input("키 (cm)", min_value=100, max_value=230)
+        weight = st.number_input("몸무게 (kg)", min_value=30, max_value=200)
+    with col2:
+        age = st.number_input("나이", min_value=10, max_value=90)
+        gender = st.selectbox("성별", ["남성", "여성"])
+    activity = st.selectbox("활동량", ["적음","보통","많음"])
+    goal = st.selectbox("건강 목표", ["체중 감량","체중 증가","유지","체지방 감소","근육 증가"])
+    preferred_food = st.text_input("좋아하는 음식 또는 오늘 떙기는 음식")
+    mood = st.selectbox("오늘 기분", ["피곤함","상쾌함","보통","스트레스","기운 없음"])
+    allergy = st.text_input("알레르기 (예: 땅콩, 새우 등)")
+    religion = st.text_input("종교적/이념적 이유로 못 먹는 음식")
 
 # =============================
 # CALORIE CALCULATION
@@ -106,13 +105,15 @@ def calculate_daily_calories(height, weight, age, gender, activity, goal):
 # =============================
 def recommend_meals(calorie_target, weight, goal, preferred_food="", mood="", allergy="", religion=""):
     df = FOOD_DB.copy()
-    # 필터
+    # 필터 적용
     if allergy: df = df[~df['tags'].apply(lambda x: allergy in x)]
     if religion: df = df[~df['tags'].apply(lambda x: religion in x)]
     if preferred_food: df = df[df['food'].str.contains(preferred_food, na=False)]
+    
     protein_target = weight*1.5 if goal=="근육 증가" else weight*1.2
     meal_ratio={"아침":0.25,"점심":0.35,"저녁":0.35}
     meals={}
+    
     for meal, ratio in meal_ratio.items():
         meal_items=[]
         for cat in ["주식","단백질","채소반찬","서브메뉴"]:
@@ -126,32 +127,30 @@ def recommend_meals(calorie_target, weight, goal, preferred_food="", mood="", al
 # RUN SYSTEM
 # =============================
 if st.button("식단 설계 시작하기"):
-    calorie_target=calculate_daily_calories(height, weight, age, gender, activity, goal)
+    calorie_target = calculate_daily_calories(height, weight, age, gender, activity, goal)
     st.success(f"하루 권장 칼로리: **{calorie_target} kcal** (TDEE 기반 계산)")
-    meals, protein_target=recommend_meals(calorie_target, weight, goal, preferred_food, mood, allergy, religion)
+    meals, protein_target = recommend_meals(calorie_target, weight, goal, preferred_food, mood, allergy, religion)
     
     st.markdown("### 🥗 오늘의 맞춤 식단")
-    total_protein=0
-    total_calories=0
+    total_protein = 0
+    total_calories = 0
     for meal_name, df in meals.items():
         st.markdown(f"#### {meal_name}")
         for idx, row in df.iterrows():
-            total_protein+=row['protein']
-            total_calories+=row['calories']
+            total_protein += row['protein']
+            total_calories += row['calories']
             st.markdown(f"""
             <div class='card'>
                 <img src='{row['image_url']}'/>
                 <h4>{row['food']} ({row['category']})</h4>
-                <p>칼로리: {row['calories']} kcal | 단백질: {row['protein']}g | 탄수화물: {row['carbs']}g | 지방: {row['fat']}g</p>
+                <p>칼로리: {row['calories']} kcal | 단백질: {row['protein']} g | 탄수화물: {row['carbs']} g | 지방: {row['fat']} g</p>
             </div>
             """, unsafe_allow_html=True)
     
-    # =============================
     # 목표 달성 시각화
-    # =============================
     st.markdown("### 💪 단백질 목표 달성률")
     st.progress(min(total_protein/protein_target,1.0))
-    st.info(f"{total_protein:.1f}g / {protein_target:.1f}g")
+    st.info(f"{total_protein:.1f} g / {protein_target:.1f} g")
     
     st.markdown("### 🔥 칼로리 목표 달성률")
     st.progress(min(total_calories/calorie_target,1.0))
