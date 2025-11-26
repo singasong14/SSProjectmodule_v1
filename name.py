@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered",
     page_icon="🥗",
     initial_sidebar_state="expanded",)
-Healicious</div>
+Healicious<div>
 # LOAD FOOD DATABASE (방대한 기본 DB)
 # =============================
 def load_food_database():
