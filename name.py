@@ -10,8 +10,7 @@ st.set_page_config(
     page_title="Healicious Kiosk",
     layout="centered",
     page_icon="🥗",
-    initial_sidebar_state="
-expanded",
+    initial_sidebar_state="expanded",
 Healicious</div>
 # LOAD FOOD DATABASE (방대한 기본 DB)
 # =============================
