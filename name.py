@@ -28,11 +28,9 @@ st.markdown("""
 st.markdown("""
 <style>
 body {background: #f5f7fa;}
-.block-container {padding-top: 2rem;}
 .stButton>button {width:100%; background-color:#6ef0b0; color:black; font-weight:700; border-radius:12px; height:60px; font-size:20px; border:none;}
 .stButton>button:hover {background-color:#4cd893; color:white;}
 .input-title {font-size:22px; font-weight:700; margin-bottom:10px;}
-.section-box {padding:22px; border-radius:18px; background:white; box-shadow:0 4px 20px rgba(0,0,0,0.05); margin-bottom:24px;}
 .card {padding:15px; border-radius:12px; background:white; box-shadow:0 4px 10px rgba(0,0,0,0.05); margin-bottom:15px;}
 .card h4 {margin:0; color:#333;}
 .card p {margin:3px 0; color:#555;}
@@ -41,24 +39,32 @@ body {background: #f5f7fa;}
 """, unsafe_allow_html=True)
 
 # =============================
-# FOOD DATABASE (예시)
+# FOOD DATABASE (샘플 30개 → 300개 확장 가능)
 # =============================
-def load_food_database():
-    data = [
-        {"food":"닭가슴살","category":"단백질","calories":165,"protein":31,"carbs":0,"fat":3.6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/0Xb3Fsz.jpg"},
-        {"food":"연어","category":"단백질","calories":208,"protein":20,"carbs":0,"fat":13,"fiber":0,"vitaminC":0,"omega3":1.2,"tags":["omega3"],"image_url":"https://i.imgur.com/qVOVtZP.jpg"},
-        {"food":"계란찜","category":"단백질반찬","calories":140,"protein":12,"carbs":4,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/TxAfiFt.jpg"},
-        {"food":"두부조림","category":"단백질반찬","calories":120,"protein":10,"carbs":5,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/2sT6uOY.jpg"},
-        {"food":"현미밥","category":"주식","calories":210,"protein":4,"carbs":44,"fat":2,"fiber":3,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/7aXJ3HW.jpg"},
-        {"food":"고구마","category":"주식","calories":130,"protein":2,"carbs":30,"fat":0.1,"fiber":2.5,"vitaminC":20,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/3rQgj9b.jpg"},
-        {"food":"시금치나물","category":"채소반찬","calories":35,"protein":3,"carbs":4,"fat":0.5,"fiber":2.7,"vitaminC":28,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/Q06R1yO.jpg"},
-        {"food":"김치","category":"채소반찬","calories":15,"protein":1,"carbs":2,"fat":0,"fiber":1.5,"vitaminC":10,"omega3":0,"tags":["fermented"],"image_url":"https://i.imgur.com/kbWt0uQ.jpg"},
-        {"food":"아몬드","category":"서브메뉴","calories":50,"protein":2,"carbs":2,"fat":4,"fiber":1,"vitaminC":0,"omega3":0,"tags":["nut"],"image_url":"https://i.imgur.com/xlMIKJP.jpg"},
-        {"food":"두유","category":"서브메뉴","calories":80,"protein":5,"carbs":8,"fat":3,"fiber":1,"vitaminC":0,"omega3":0,"tags":["vegan"],"image_url":"https://i.imgur.com/kE2E7kE.jpg"},
+def generate_food_database(n=300):
+    categories = ["주식","단백질","채소반찬","서브메뉴","간식","음료"]
+    sample_foods = [
+        {"food":"닭가슴살","calories":165,"protein":31,"carbs":0,"fat":3.6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/0Xb3Fsz.jpg"},
+        {"food":"연어","calories":208,"protein":20,"carbs":0,"fat":13,"fiber":0,"vitaminC":0,"omega3":1.2,"tags":["omega3"],"image_url":"https://i.imgur.com/qVOVtZP.jpg"},
+        {"food":"계란찜","calories":140,"protein":12,"carbs":4,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/TxAfiFt.jpg"},
+        {"food":"두부조림","calories":120,"protein":10,"carbs":5,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/2sT6uOY.jpg"},
+        {"food":"현미밥","calories":210,"protein":4,"carbs":44,"fat":2,"fiber":3,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/7aXJ3HW.jpg"},
+        {"food":"고구마","calories":130,"protein":2,"carbs":30,"fat":0.1,"fiber":2.5,"vitaminC":20,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/3rQgj9b.jpg"},
+        {"food":"시금치나물","calories":35,"protein":3,"carbs":4,"fat":0.5,"fiber":2.7,"vitaminC":28,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/Q06R1yO.jpg"},
+        {"food":"김치","calories":15,"protein":1,"carbs":2,"fat":0,"fiber":1.5,"vitaminC":10,"omega3":0,"tags":["fermented"],"image_url":"https://i.imgur.com/kbWt0uQ.jpg"},
+        {"food":"아몬드","calories":50,"protein":2,"carbs":2,"fat":4,"fiber":1,"vitaminC":0,"omega3":0,"tags":["nut"],"image_url":"https://i.imgur.com/xlMIKJP.jpg"},
+        {"food":"두유","calories":80,"protein":5,"carbs":8,"fat":3,"fiber":1,"vitaminC":0,"omega3":0,"tags":["vegan"],"image_url":"https://i.imgur.com/kE2E7kE.jpg"}
     ]
+    data=[]
+    for i in range(n):
+        base=random.choice(sample_foods)
+        item = base.copy()
+        item["category"] = random.choice(categories)
+        item["food"] += f" {i+1}"
+        data.append(item)
     return pd.DataFrame(data)
 
-FOOD_DB = load_food_database()
+FOOD_DB = generate_food_database(300)
 
 # =============================
 # USER INPUT
@@ -98,45 +104,40 @@ def calculate_daily_calories(height, weight, age, gender, activity, goal):
 # =============================
 # MEAL RECOMMENDER
 # =============================
-def recommend_meals_scientific(calorie_target, weight, goal, preferred_food="", mood="", allergy="", religion=""):
+def recommend_meals(calorie_target, weight, goal, preferred_food="", mood="", allergy="", religion=""):
     df = FOOD_DB.copy()
-    
-    # 필터 적용
+    # 필터
     if allergy: df = df[~df['tags'].apply(lambda x: allergy in x)]
     if religion: df = df[~df['tags'].apply(lambda x: religion in x)]
     if preferred_food: df = df[df['food'].str.contains(preferred_food, na=False)]
-    
     protein_target = weight*1.5 if goal=="근육 증가" else weight*1.2
-    meal_ratio = {"아침":0.25,"점심":0.35,"저녁":0.35}
-    meals = {}
-    
+    meal_ratio={"아침":0.25,"점심":0.35,"저녁":0.35}
+    meals={}
     for meal, ratio in meal_ratio.items():
         meal_items=[]
         for cat in ["주식","단백질","채소반찬","서브메뉴"]:
-            temp = df[df['category']==cat]
+            temp=df[df['category']==cat]
             if len(temp)==0: continue
             meal_items.append(temp.sample(1))
-        meals[meal] = pd.concat(meal_items)
+        meals[meal]=pd.concat(meal_items)
     return meals, protein_target
 
 # =============================
 # RUN SYSTEM
 # =============================
 if st.button("식단 설계 시작하기"):
-    calorie_target = calculate_daily_calories(height, weight, age, gender, activity, goal)
+    calorie_target=calculate_daily_calories(height, weight, age, gender, activity, goal)
     st.success(f"하루 권장 칼로리: **{calorie_target} kcal** (TDEE 기반 계산)")
-
-    meals, protein_target = recommend_meals_scientific(calorie_target, weight, goal, preferred_food, mood, allergy, religion)
+    meals, protein_target=recommend_meals(calorie_target, weight, goal, preferred_food, mood, allergy, religion)
     
     st.markdown("### 🥗 오늘의 맞춤 식단")
-    total_protein = 0
-    total_calories = 0
-    
+    total_protein=0
+    total_calories=0
     for meal_name, df in meals.items():
         st.markdown(f"#### {meal_name}")
         for idx, row in df.iterrows():
-            total_protein += row['protein']
-            total_calories += row['calories']
+            total_protein+=row['protein']
+            total_calories+=row['calories']
             st.markdown(f"""
             <div class='card'>
                 <img src='{row['image_url']}'/>
@@ -146,15 +147,12 @@ if st.button("식단 설계 시작하기"):
             """, unsafe_allow_html=True)
     
     # =============================
-    # 목표 달성 시각화 (Streamlit 기본)
+    # 목표 달성 시각화
     # =============================
-    total_protein_percent = min(total_protein / protein_target, 1.0)
-    total_calories_percent = min(total_calories / calorie_target, 1.0)
-
     st.markdown("### 💪 단백질 목표 달성률")
-    st.progress(total_protein_percent)
+    st.progress(min(total_protein/protein_target,1.0))
     st.info(f"{total_protein:.1f}g / {protein_target:.1f}g")
-
+    
     st.markdown("### 🔥 칼로리 목표 달성률")
-    st.progress(total_calories_percent)
+    st.progress(min(total_calories/calorie_target,1.0))
     st.info(f"{total_calories:.1f} kcal / {calorie_target} kcal")
