@@ -10,7 +10,9 @@ st.set_page_config(
     page_title="Healicious Kiosk",
     layout="centered",
     page_icon="🥗",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="
+expanded",
+
 )
 
 # =============================
@@ -25,309 +27,105 @@ BRAND_HTML = """
     </svg>'
     style='height:56px; border-radius:12px;' />
     <div>
-        <div style='font-size:30px; font-weight:800; font-family:Inter;'>Healicious</div>
-        <div style='font-size:13px; color:#5f6b7a; margin-top:2px;'>Healthy + Delicious 식습관 코치</div>
-    </div>
-</div>
-"""
-st.markdown(BRAND_HTML, unsafe_allow_html=True)
-
-# =============================
-# CUSTOM UI CSS
-# =============================
-st.markdown(
-    """
-<style>
-body {
-    background: #f5f7fa;
-}
-.block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
-    max-width: 900px;
-}
-.section-box {
-    padding: 20px 22px;
-    border-radius: 18px;
-    background: white;
-    box-shadow: 0 4px 18px rgba(15,23,42,0.05);
-    margin-bottom: 18px;
-}
-.section-title {
-    font-size: 20px;
-    font-weight: 800;
-    margin-bottom: 6px;
-}
-.section-caption {
-    font-size: 13px;
-    color: #6b7280;
-    margin-bottom: 8px;
-}
-.badge {
-    display:inline-block;
-    padding: 2px 8px;
-    border-radius:999px;
-    font-size:11px;
-    background:#ecfdf3;
-    color:#15803d;
-    margin-right:6px;
-}
-.badge-danger {
-    background:#fef2f2;
-    color:#b91c1c;
-}
-.stButton>button {
-    width: 100%;
-    background-color: #6ef0b0;
-    color: #111827;
-    font-weight: 700;
-    border-radius: 999px;
-    height: 56px;
-    font-size: 18px;
-    border: none;
-}
-.stButton>button:hover {
-    background-color: #4cd893;
-    color: white;
-}
-.meal-card {
-    border-radius: 16px;
-    padding: 14px 16px;
-    background:#f9fafb;
-    margin-bottom:10px;
-}
-.meal-title {
-    font-size:16px;
-    font-weight:700;
-}
-.meal-sub {
-    font-size:12px;
-    color:#6b7280;
-}
-.kcal-tag {
-    font-size:12px;
-    font-weight:600;
-    padding:2px 8px;
-    border-radius:999px;
-    background:#e0f2fe;
-    color:#0369a1;
-}
-.macro-line {
-    font-size:12px;
-    color:#4b5563;
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-# =============================
-# LOAD FOOD DATABASE
+        <div style='font-size:30px; font-weight:800; font-family:Inter;'>
+Healicious</div>
+# LOAD FOOD DATABASE (방대한 기본 DB)
 # =============================
 def load_food_database():
-    # 기본 DB (식품군 + 대략적인 영양성분)
+    # 엄청 방대한 기본 DB (한국 건강식 위주)
     default_data = pd.DataFrame(
         {
             "food": [
-                "닭가슴살 구이",
-                "연어 샐러드",
-                "두부 스테이크",
-                "현미밥",
-                "고구마 구이",
-                "야채 스틱 & 후무스",
-                "그릭 요거트 & 베리",
-                "계란찜",
-                "두부김치 (저염)",
-                "비빔밥 (채소 듬뿍)",
-                "콩나물국",
-                "닭가슴살 샐러드랩",
+                "현미밥", "잡곡밥", "백미밥", "고구마 구이", "단호박 구이",
+                "닭가슴살 구이", "닭가슴살 샐러드", "연어 스테이크", "연어 샐러드", "훈제오리 샐러드",
+                "두부 구이", "두부 스테이크", "콩불고기", "계란찜", "스크램블 에그",
+                "그릭 요거트 & 베리", "플레인 요거트", "저지방 우유 1컵", "두유 1컵", "치즈 한 장",
+                "시금치나물", "브로콜리 찜", "샐러드 믹스", "그린 스무디", "야채 스틱 & 후무스",
+                "비빔밥 (채소 듬뿍)", "채소 김밥", "곤약 볶음밥", "닭가슴살 파스타", "토마토 파스타 (저지방)",
+                "콩나물국", "된장국 (저염)", "미소된장국", "소고기무국", "닭가슴살 채소스프",
+                "단백질 쉐이크", "단백질 바", "오트밀 죽", "과일 샐러드", "사과 1개",
+                "바나나 1개", "블루베리 한 줌", "방울토마토 한 컁", "아몬드 한 줌", "호두 한 줌",
+                "훈제연어 베이글 (저지방 크림치즈)", "닭가슴살 샌드위치", "터키 샌드위치", "통밀 토스트 & 땅콩버터", "아보카도 토스트",
+                "잡곡밥 + 닭갈비(저지방)", "현미밥 + 제철생선구이", "현미밥 + 닭가슴살볶음", "두부덮밥", "버섯잡채 (저기름)",
+                "현미채소 비빔면 (저염)", "냉메밀소바 (저염)", "콩국수 (저염)", "순두부찌개 (저염)", "채소 카레라이스 (현미밥)",
             ],
             "category": [
-                "단백질",
-                "단백질",
-                "단백질",
-                "곡류",
-                "곡류",
-                "채소/지방",
-                "유제품",
-                "단백질",
-                "단백질",
-                "혼합식",
-                "국/찌개",
-                "혼합식",
+                "곡류", "곡류", "곡류", "곡류", "곡류",
+                "단백질", "샐러드", "단백질", "샐러드", "샐러드",
+                "단백질", "단백질", "단백질", "단백질", "단백질",
+                "유제품", "유제품", "유제품", "유제품", "유제품",
+                "채소/지방", "채소/지방", "샐러드", "샐러드", "채소/지방",
+                "혼합식", "혼합식", "혼합식", "혼합식", "혼합식",
+                "국/찌개", "국/찌개", "국/찌개", "국/찌개", "국/찌개",
+                "단백질", "단백질", "곡류", "디저트/간식", "디저트/간식",
+                "디저트/간식", "디저트/간식", "디저트/간식", "지방/간식", "지방/간식",
+                "혼합식", "혼합식", "혼합식", "곡류", "곡류",
+                "혼합식", "혼합식", "혼합식", "혼합식", "혼합식",
+                "혼합식", "혼합식", "혼합식", "국/찌개", "혼합식",
             ],
-            "calories": [180, 320, 260, 210, 160, 190, 180, 140, 230, 550, 60, 320],
-            "protein": [35, 22, 20, 4, 2, 6, 15, 12, 18, 18, 4, 22],
-            "carbs": [2, 14, 10, 44, 38, 16, 18, 4, 8, 70, 8, 30],
-            "fat": [4, 18, 14, 2, 0.5, 10, 5, 6, 14, 14, 1, 8],
-        }
-    )
-
-    file_path = "/mnt/data/20250408_음식DB.xlsx"
-    if os.path.exists(file_path):
-        try:
-            df = pd.read_excel(file_path)
-            # 필수 컬럼 없으면 기본값으로 보정
-            needed = ["food", "calories", "protein", "carbs", "fat"]
-            for col in needed:
-                if col not in df.columns:
-                    df[col] = default_data[col]
-            if "category" not in df.columns:
-                df["category"] = "기타"
-            return df
-        except Exception:
-            return default_data
-    else:
-        return default_data
-
-
-FOOD_DB = load_food_database()
-
-# =============================
-# 과학적 원리 설명 영역
-# =============================
-with st.expander("⚗️ Healicious의 영양 설계 원리", expanded=False):
-    st.markdown(
-        """
-- **1단계 – 에너지 요구량(TDEE) 계산**  
-  키·몸무게·나이·성별로 기초대사량(BMR)을 구하고, 활동량에 따라 **총 소모 칼로리(TDEE)** 를 추정합니다.
-
-- **2단계 – 목표에 따른 칼로리 조정**  
-  - 체중 감량: TDEE에서 약 **300 kcal 감소**  
-  - 체중 증가: TDEE에 약 **300 kcal 증가**  
-  - 근육 증가: 단백질을 늘리고, TDEE에 약 **150 kcal 증가**
-
-- **3단계 – 거시 영양소 비율 설정**  
-  하루 칼로리를 단백질·탄수화물·지방으로 나눕니다.
-  - 단백질: 체중(kg) × 1.2–2.0 g  
-  - 나머지 칼로리 중  
-    - 체중 감량: 탄수화물 40%, 지방 60%  
-    - 유지/건강: 탄수화물 50%, 지방 50%  
-    - 근육 증가: 탄수화물 45%, 지방 55%
-
-- **4단계 – 식품군 균형**  
-  한 끼 안에서  
-  - **단백질 식품**(닭가슴살·콩류·두부 등)  
-  - **곡류/전분**(현미밥·고구마 등)  
-  - **채소/과일**  
-  을 최소 2~3가지 이상 섞어서 **포만감·영양·맛**을 동시에 고려합니다.
-"""
-    )
-
-# =============================
-# HELPER – 칼로리 & 매크로 계산
-# =============================
-def calculate_daily_calories(height, weight, age, gender, activity, goal):
-    if gender == "남성":
-        bmr = 66 + (13.7 * weight) + (5 * height) - (6.8 * age)
-    else:
-        bmr = 655 + (9.6 * weight) + (1.8 * height) - (4.7 * age)
-
-    factor = {"적음": 1.2, "보통": 1.375, "많음": 1.55}[activity]
-    tdee = bmr * factor
-
-    if goal == "체중 감량":
-        tdee -= 300
-    elif goal == "체중 증가":
-        tdee += 300
-    elif goal == "근육 증가":
-        tdee += 150
-
-    # 너무 낮게 떨어지는 것 방지
+            "calories": [
+                210, 230, 250, 160, 170,
+                180, 260, 320, 300, 320,
+                180, 220, 260, 140, 160,
+                180, 120, 90, 110, 80,
+                40, 45, 35, 150, 190,
+                550, 420, 350, 480, 420,
+                60, 80, 50, 120, 150,
+                200, 180, 250, 80, 95,
+                100, 60, 30, 160, 170,
+                380, 360, 340, 220, 260,
+                600, 520, 500, 430, 380,
+                450, 420, 500, 320, 520,
+            ],
+            "protein": [
+                4, 6, 5, 3, 3,
+                35, 32, 30, 24, 24,
+                16, 18, 20, 12, 12,
+                15, 7, 6, 7, 5,
+                3, 4, 3, 6, 6,
+                20, 12, 14, 30, 18,
+                4, 5, 4, 10, 15,
+                25, 18, 10, 1, 0,
+                1, 1, 1, 6, 5,
+                20, 24, 22, 9, 8,
+                32, 28, 30, 18, 12,
+                14, 12, 20, 16, 14,
+            ],
+            "carbs": [
+                44, 46, 52, 38, 35,
+                2, 16, 0, 12, 10,
+                6, 8, 10, 4, 2,
+                18, 14, 9, 8, 1,
+                6, 8, 6, 24, 16,
+                70, 60, 48, 42, 52,
+                8, 6, 6, 10, 12,
+                8, 15, 40, 20, 25,
+                27, 14, 7, 6, 4,
+                40, 32, 34, 30, 32,
+                72, 60, 58, 55, 60,
+                65, 60, 70, 10, 70,
+            ],
+            "fat": [
+                2, 2, 1, 0.5, 0.5,
+                4, 10, 18, 20, 18,
+                8, 12, 10, 6, 10,
+                5, 3, 2, 4, 6,
+                0.5, 0.5, 0.3, 3, 10,
+                14, 8, 6, 10, 6,
+                1, 3, 1, 6, 5,
+                5, 6, 5, 0.5, 0.3,
+                0.5, 0.3, 0.2, 14, 16,
+                12, 12, 10, 8, 10,
+                18, 16, 14, 10, 8,
+                12, 10, 12, 18, 12,
+height, weight, age, gender, activity, goal):
     return max(1200, round(tdee))
 
 
 def calculate_macro_targets(weight, calorie_target, goal):
-    # 단백질(g/kg) 설정
-    if goal in ["체중 감량", "체지방 감소"]:
-        protein_per_kg = 1.6
-        carb_ratio = 0.40
-    elif goal in ["근육 증가"]:
-        protein_per_kg = 2.0
-        carb_ratio = 0.45
-    else:  # 유지 / 체중 증가
-        protein_per_kg = 1.2
-        carb_ratio = 0.50
-
-    protein_g = protein_per_kg * weight
-    protein_kcal = protein_g * 4
-
-    remaining_kcal = max(0, calorie_target - protein_kcal)
-    carbs_kcal = remaining_kcal * carb_ratio
-    fat_kcal = remaining_kcal - carbs_kcal
-
-    carbs_g = carbs_kcal / 4
-    fat_g = fat_kcal / 9 if fat_kcal > 0 else 0
-
-    return {
-        "protein_g": round(protein_g),
-        "carbs_g": round(carbs_g),
-        "fat_g": round(fat_g),
-    }
-
-# =============================
-# USER INPUT SECTION
-# =============================
-with st.container():
-    with st.expander("👤 기본 정보 입력", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            height = st.number_input("키 (cm)", min_value=100, max_value=230, value=170)
-            weight = st.number_input("몸무게 (kg)", min_value=30, max_value=200, value=60)
-        with col2:
-            age = st.number_input("나이", min_value=10, max_value=90, value=18)
-            gender = st.selectbox("성별", ["남성", "여성"])
-
-        activity = st.selectbox("활동량", ["적음", "보통", "많음"])
-
-        goal = st.selectbox(
-            "현재 건강 목표",
-            ["체중 감량", "체중 증가", "유지", "체지방 감소", "근육 증가"],
-        )
-
-    col_pref1, col_pref2 = st.columns(2)
-    with col_pref1:
-        preferred_food = st.text_input("좋아하는 음식 / 오늘 땡기는 음식")
-        mood = st.selectbox(
-            "오늘 기분",
-            ["피곤함", "상쾌함", "보통", "스트레스", "기운 없음"],
-        )
-    with col_pref2:
-        allergy = st.text_input("알레르기 (예: 땅콩, 새우 등)")
-        religion = st.text_input("종교적/이념적 이유로 못 먹는 음식 (예: 돼지고기 등)")
-
-    st.markdown("---")
-
-# =============================
-# MEAL RECOMMENDER (균형 설계)
-# =============================
-def filter_foods(df, preferred_food, allergy, religion):
-    tmp = df.copy()
-
-    # 선호 음식이 실제로 DB에 있으면 그쪽만 필터링
-    if preferred_food:
-        mask_pref = tmp["food"].astype(str).str.contains(preferred_food, na=False)
-        if mask_pref.any():
-            tmp = tmp[mask_pref]
-
-    # 알레르기, 종교 제한 제외
-    if allergy:
-        tmp = tmp[~tmp["food"].astype(str).str.contains(allergy, na=False)]
-    if religion:
-        tmp = tmp[~tmp["food"].astype(str).str.contains(religion, na=False)]
-
-    if len(tmp) == 0:
-        tmp = df.copy()
-
-    return tmp.reset_index(drop=True)
-
-
-def build_meal_plan(df, calorie_target, macro_target):
-    # 끼니별 칼로리 비율 (아침 30%, 점심 40%, 저녁 30%)
-    ratios = {"아침": 0.3, "점심": 0.4, "저녁": 0.3}
-    meals = {}
-
-    # 밀도 계산 (단백질/탄수화물 밀도)
+contains(preferred_food, na=False)
+str.contains(allergy, na=False)]
+str.contains(religion, na=False)]
     df = df.copy()
     df["protein_density"] = df["protein"] / df["calories"].replace(0, np.nan)
     df["carb_density"] = df["carbs"] / df["calories"].replace(0, np.nan)
@@ -336,7 +134,6 @@ def build_meal_plan(df, calorie_target, macro_target):
         target_kcal = calorie_target * r
         selected_rows = []
 
-        # 단백질 식품 1개, 곡류/혼합식 1개, 기타 1개 우선 조합
         protein_candidates = df[df["category"].isin(["단백질"])].sort_values(
             "protein_density", ascending=False
         )
@@ -355,7 +152,6 @@ def build_meal_plan(df, calorie_target, macro_target):
             if row is not None:
                 selected_rows.append(row)
 
-        # 필요시 추가 샘플링으로 칼로리 근사
         loop_guard = 0
         total_kcal = sum(rw["calories"] for rw in selected_rows)
         while total_kcal < target_kcal * 0.9 and loop_guard < 10:
