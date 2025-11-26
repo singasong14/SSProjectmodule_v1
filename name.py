@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 import random
 
 # =============================
@@ -97,12 +96,12 @@ def calculate_daily_calories(height, weight, age, gender, activity, goal):
     return round(tdee)
 
 # =============================
-# SCIENTIFIC MEAL RECOMMENDER
+# MEAL RECOMMENDER
 # =============================
 def recommend_meals_scientific(calorie_target, weight, goal, preferred_food="", mood="", allergy="", religion=""):
     df = FOOD_DB.copy()
     
-    # 필터
+    # 필터 적용
     if allergy: df = df[~df['tags'].apply(lambda x: allergy in x)]
     if religion: df = df[~df['tags'].apply(lambda x: religion in x)]
     if preferred_food: df = df[df['food'].str.contains(preferred_food, na=False)]
@@ -116,9 +115,6 @@ def recommend_meals_scientific(calorie_target, weight, goal, preferred_food="", 
         for cat in ["주식","단백질","채소반찬","서브메뉴"]:
             temp = df[df['category']==cat]
             if len(temp)==0: continue
-            # Mood 기반 가중치
-            if mood=="피곤함" and cat=="단백질":
-                temp = temp.sample(frac=1)  # 랜덤 + 중요도
             meal_items.append(temp.sample(1))
         meals[meal] = pd.concat(meal_items)
     return meals, protein_target
@@ -149,18 +145,16 @@ if st.button("식단 설계 시작하기"):
             </div>
             """, unsafe_allow_html=True)
     
-    # 하루 목표 시각화
-    st.info(f"하루 총 단백질: {total_protein:.1f}g (목표: {protein_target:.1f}g)")
-    
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = total_protein,
-        domain = {'x':[0,1],'y':[0,1]},
-        title = {'text': "단백질 목표 달성률"},
-        delta = {'reference': protein_target},
-        gauge = {'axis':{'range':[0, protein_target*1.2]},
-                 'bar':{'color':'blue'}}
-    ))
-    st.plotly_chart(fig)
-    
-    st.info(f"하루 총 칼로리: {total_calories:.1f} kcal (목표: {calorie_target} kcal)")
+    # =============================
+    # 목표 달성 시각화 (Streamlit 기본)
+    # =============================
+    total_protein_percent = min(total_protein / protein_target, 1.0)
+    total_calories_percent = min(total_calories / calorie_target, 1.0)
+
+    st.markdown("### 💪 단백질 목표 달성률")
+    st.progress(total_protein_percent)
+    st.info(f"{total_protein:.1f}g / {protein_target:.1f}g")
+
+    st.markdown("### 🔥 칼로리 목표 달성률")
+    st.progress(total_calories_percent)
+    st.info(f"{total_calories:.1f} kcal / {calorie_target} kcal")
