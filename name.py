@@ -12,22 +12,6 @@ st.set_page_config(
     page_icon="🥗",
     initial_sidebar_state="
 expanded",
-
-)
-
-# =============================
-# BRAND SECTION (SVG ICON)
-# =============================
-BRAND_HTML = """
-<div style='display:flex; align-items:center; gap:14px; margin-bottom:24px; margin-top:4px;'>
-    <img src='data:image/svg+xml;utf8,
-    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56">
-        <rect rx="12" width="56" height="56" fill="%236ef0b0"/>
-        <text x="50%" y="54%" font-size="30" text-anchor="middle" font-family="Inter" fill="white">H</text>
-    </svg>'
-    style='height:56px; border-radius:12px;' />
-    <div>
-        <div style='font-size:30px; font-weight:800; font-family:Inter;'>
 Healicious</div>
 # LOAD FOOD DATABASE (방대한 기본 DB)
 # =============================
@@ -118,7 +102,87 @@ def load_food_database():
                 12, 12, 10, 8, 10,
                 18, 16, 14, 10, 8,
                 12, 10, 12, 18, 12,
+
+            ],
+        }
+    )
+
+    file_path = "/mnt/data/20250408_음식DB.xlsx"
+
+    if os.path.exists(file_path):
+        try:
+            df = pd.read_excel(file_path)
+
+            # 필수 컬럼 없으면 기본값으로 보정
+            needed = ["food", "calories", "protein", "carbs", "fat"]
+            for col in needed:
+                if col not in df.columns:
+                    df[col] = default_data[col]
+
+            if "category" not in df.columns:
+                df["category"] = "기타"
+
+            return df
+        except Exception:
+            return default_data
+    else:
+        return default_data
+
+
+FOOD_DB = load_food_database()
+
+# =============================
+# 과학적 원리 설명 영역
+# =============================
+with st.expander("⚗️ Healicious의 영양 설계 원리", expanded=False):
+    st.markdown(
+        """
+- **1단계 – 에너지 요구량(TDEE) 계산**  
+  키·몸무게·나이·성별로 기초대사량(BMR)을 구하고, 활동량에 따라 **총 소모 칼로리(TDEE)** 를 추정합니다.
+
+- **2단계 – 목표에 따른 칼로리 조정**  
+  - 체중 감량: TDEE에서 약 **300 kcal 감소**  
+  - 체중 증가: TDEE에 약 **300 kcal 증가**  
+  - 근육 증가: 단백질을 늘리고, TDEE에 약 **150 kcal 증가**
+
+- **3단계 – 거시 영양소 비율 설정**  
+  하루 칼로리를 단백질·탄수화물·지방으로 나눕니다.
+  - 단백질: 체중(kg) × 1.2–2.0 g  
+  - 나머지 칼로리 중  
+    - 체중 감량: 탄수화물 40%, 지방 60%  
+    - 유지/건강: 탄수화물 50%, 지방 50%  
+    - 근육 증가: 탄수화물 45%, 지방 55%
+
+- **4단계 – 식품군 균형**  
+  한 끼 안에서  
+  - **단백질 식품**(닭가슴살·콩류·두부 등)  
+  - **곡류/전분**(현미밥·고구마 등)  
+  - **채소/과일**  
+  을 최소 2~3가지 이상 섞어서 **포만감·영양·맛**을 동시에 고려합니다.
+"""
+    )
+
+# =============================
+# HELPER – 칼로리 & 매크로 계산
+# =============================
+def calculate_daily_calories(
 height, weight, age, gender, activity, goal):
+
+    if gender == "남성":
+        bmr = 66 + (13.7 * weight) + (5 * height) - (6.8 * age)
+    else:
+        bmr = 655 + (9.6 * weight) + (1.8 * height) - (4.7 * age)
+
+    factor = {"적음": 1.2, "보통": 1.375, "많음": 1.55}[activity]
+    tdee = bmr * factor
+
+    if goal == "체중 감량":
+        tdee -= 300
+    elif goal == "체중 증가":
+        tdee += 300
+    elif goal == "근육 증가":
+        tdee += 150
+
     return max(1200, round(tdee))
 
 
@@ -193,7 +257,17 @@ def filter_foods(df, preferred_food, allergy, religion):
     if preferred_food:
         mask_pref = tmp["food"].astype(str).str.
 contains(preferred_food, na=False)
+
+        if mask_pref.any():
+            tmp = tmp[mask_pref]
+
+    # 알레르기, 종교 제한 제외
+    if allergy:
+        tmp = tmp[~tmp["food"].astype(str).
 str.contains(allergy, na=False)]
+
+    if religion:
+        tmp = tmp[~tmp["food"].astype(str).
 str.contains(religion, na=False)]
     df = df.copy()
     df["protein_density"] = df["protein"] / df["calories"].replace(0, np.nan)
