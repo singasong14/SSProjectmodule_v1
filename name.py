@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import random
+from PIL import Image, ImageDraw, ImageFont
 
 # =============================
 # PAGE CONFIG
@@ -13,12 +13,7 @@ st.set_page_config(page_title="Healicious Pro", layout="wide", page_icon="🥗",
 # =============================
 st.markdown("""
 <div style='display:flex; align-items:center; gap:14px; margin-bottom:30px;'>
-    <img src='data:image/svg+xml;utf8,
-    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56">
-        <rect rx="12" width="56" height="56" fill="%236ef0b0"/>
-        <text x="50%" y="54%" font-size="30" text-anchor="middle" font-family="Inter" fill="white">H</text>
-    </svg>' style='height:56px; border-radius:12px;'/>
-    <span style='font-size:36px; font-weight:800; font-family:Inter;'>Healicious Pro</span>
+    <span style='font-size:36px; font-weight:800; font-family:Inter;'>🥗 Healicious Pro</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -28,48 +23,61 @@ st.markdown("""
 st.markdown("""
 <style>
 body {background: #f5f7fa;}
-.stButton>button {width:100%; background-color:#6ef0b0; color:black; font-weight:700; border-radius:12px; height:60px; font-size:20px; border:none;}
+.stButton>button {width:100%; background-color:#6ef0b0; color:black; font-weight:700; border-radius:12px; height:50px; font-size:18px; border:none;}
 .stButton>button:hover {background-color:#4cd893; color:white;}
-.input-title {font-size:22px; font-weight:700; margin-bottom:10px;}
-.card {padding:15px; border-radius:12px; background:white; box-shadow:0 4px 10px rgba(0,0,0,0.05); margin-bottom:15px;}
+.card {padding:12px; border-radius:12px; background:white; box-shadow:0 4px 10px rgba(0,0,0,0.05); margin-bottom:12px;}
 .card h4 {margin:0; color:#333;}
-.card p {margin:3px 0; color:#555;}
-.card img {width:100%; max-height:150px; object-fit:cover; border-radius:8px; margin-bottom:5px;}
+.card p {margin:2px 0; color:#555;}
 </style>
 """, unsafe_allow_html=True)
 
 # =============================
-# 300+ FOOD DATABASE (샘플)
+# HELPER: PIL 임베디드 이미지 생성
 # =============================
-def generate_food_database(n=300):
+def generate_dummy_image(name, size=(200,150)):
+    img = Image.new("RGB", size, (random.randint(50,255), random.randint(50,255), random.randint(50,255)))
+    draw = ImageDraw.Draw(img)
+    font_size = 20
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+    except:
+        font = ImageFont.load_default()
+    text = name[:10]
+    w,h = draw.textsize(text, font=font)
+    draw.text(((size[0]-w)/2,(size[1]-h)/2), text, fill="white", font=font)
+    return img
+
+# =============================
+# FOOD DATABASE (300개 샘플)
+# =============================
+def generate_food_db(n=300):
     categories = ["주식","단백질","채소반찬","서브메뉴","간식","음료"]
     sample_foods = [
-        {"food":"닭가슴살","calories":165,"protein":31,"carbs":0,"fat":3.6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/0Xb3Fsz.jpg"},
-        {"food":"연어","calories":208,"protein":20,"carbs":0,"fat":13,"fiber":0,"vitaminC":0,"omega3":1.2,"tags":["omega3"],"image_url":"https://i.imgur.com/qVOVtZP.jpg"},
-        {"food":"계란찜","calories":140,"protein":12,"carbs":4,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/TxAfiFt.jpg"},
-        {"food":"두부조림","calories":120,"protein":10,"carbs":5,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/2sT6uOY.jpg"},
-        {"food":"현미밥","calories":210,"protein":4,"carbs":44,"fat":2,"fiber":3,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/7aXJ3HW.jpg"},
-        {"food":"고구마","calories":130,"protein":2,"carbs":30,"fat":0.1,"fiber":2.5,"vitaminC":20,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/3rQgj9b.jpg"},
-        {"food":"시금치나물","calories":35,"protein":3,"carbs":4,"fat":0.5,"fiber":2.7,"vitaminC":28,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/Q06R1yO.jpg"},
-        {"food":"김치","calories":15,"protein":1,"carbs":2,"fat":0,"fiber":1.5,"vitaminC":10,"omega3":0,"tags":["fermented"],"image_url":"https://i.imgur.com/kbWt0uQ.jpg"},
-        {"food":"아몬드","calories":50,"protein":2,"carbs":2,"fat":4,"fiber":1,"vitaminC":0,"omega3":0,"tags":["nut"],"image_url":"https://i.imgur.com/xlMIKJP.jpg"},
-        {"food":"두유","calories":80,"protein":5,"carbs":8,"fat":3,"fiber":1,"vitaminC":0,"omega3":0,"tags":["vegan"],"image_url":"https://i.imgur.com/kE2E7kE.jpg"}
+        {"food":"닭가슴살","calories":165,"protein":31,"carbs":0,"fat":3.6,"category":"단백질"},
+        {"food":"연어","calories":208,"protein":20,"carbs":0,"fat":13,"category":"단백질"},
+        {"food":"계란찜","calories":140,"protein":12,"carbs":4,"fat":6,"category":"단백질"},
+        {"food":"두부조림","calories":120,"protein":10,"carbs":5,"fat":6,"category":"단백질"},
+        {"food":"현미밥","calories":210,"protein":4,"carbs":44,"fat":2,"category":"주식"},
+        {"food":"고구마","calories":130,"protein":2,"carbs":30,"fat":0.1,"category":"주식"},
+        {"food":"시금치나물","calories":35,"protein":3,"carbs":4,"fat":0.5,"category":"채소반찬"},
+        {"food":"김치","calories":15,"protein":1,"carbs":2,"fat":0,"category":"채소반찬"},
+        {"food":"아몬드","calories":50,"protein":2,"carbs":2,"fat":4,"category":"간식"},
+        {"food":"두유","calories":80,"protein":5,"carbs":8,"fat":3,"category":"음료"}
     ]
     data=[]
     for i in range(n):
         base=random.choice(sample_foods)
         item=base.copy()
-        item["category"]=random.choice(categories)
-        item["food"]+=f" {i+1}"
+        item["image"]=generate_dummy_image(item["food"])
         data.append(item)
     return pd.DataFrame(data)
 
-FOOD_DB = generate_food_database(300)
+FOOD_DB = generate_food_db(300)
 
 # =============================
 # USER INPUT
 # =============================
-st.markdown("<div class='input-title'>사용자 기본 정보 입력</div>", unsafe_allow_html=True)
+st.markdown("### 사용자 기본 정보 입력")
 with st.expander("기본 정보 입력", expanded=True):
     col1, col2 = st.columns(2)
     with col1:
@@ -77,18 +85,18 @@ with st.expander("기본 정보 입력", expanded=True):
         weight = st.number_input("몸무게 (kg)", min_value=30, max_value=200)
     with col2:
         age = st.number_input("나이", min_value=10, max_value=90)
-        gender = st.selectbox("성별", ["남성", "여성"])
+        gender = st.selectbox("성별", ["남성","여성"])
     activity = st.selectbox("활동량", ["적음","보통","많음"])
     goal = st.selectbox("건강 목표", ["체중 감량","체중 증가","유지","체지방 감소","근육 증가"])
     preferred_food = st.text_input("좋아하는 음식 또는 오늘 떙기는 음식")
     mood = st.selectbox("오늘 기분", ["피곤함","상쾌함","보통","스트레스","기운 없음"])
     allergy = st.text_input("알레르기 (예: 땅콩, 새우 등)")
-    religion = st.text_input("종교적/이념적 이유로 못 먹는 음식")
+    religion = st.text_input("못 먹는 음식(종교/이념)")
 
 # =============================
-# CALORIE CALCULATION
+# CALORIE + PROTEIN
 # =============================
-def calculate_daily_calories(height, weight, age, gender, activity, goal):
+def calculate_tdee(height, weight, age, gender, activity, goal):
     if gender=="남성":
         bmr=66+(13.7*weight)+(5*height)-(6.8*age)
     else:
@@ -103,11 +111,11 @@ def calculate_daily_calories(height, weight, age, gender, activity, goal):
 # =============================
 # MEAL RECOMMENDER
 # =============================
-def recommend_meals(calorie_target, weight, goal, preferred_food="", mood="", allergy="", religion=""):
+def recommend_meals(calorie_target, weight, goal, preferred_food="", allergy="", religion=""):
     df = FOOD_DB.copy()
     # 필터 적용
-    if allergy: df = df[~df['tags'].apply(lambda x: allergy in x)]
-    if religion: df = df[~df['tags'].apply(lambda x: religion in x)]
+    if allergy: df = df[~df['food'].str.contains(allergy, na=False)]
+    if religion: df = df[~df['food'].str.contains(religion, na=False)]
     if preferred_food: df = df[df['food'].str.contains(preferred_food, na=False)]
     
     protein_target = weight*1.5 if goal=="근육 증가" else weight*1.2
@@ -127,9 +135,10 @@ def recommend_meals(calorie_target, weight, goal, preferred_food="", mood="", al
 # RUN SYSTEM
 # =============================
 if st.button("식단 설계 시작하기"):
-    calorie_target = calculate_daily_calories(height, weight, age, gender, activity, goal)
-    st.success(f"하루 권장 칼로리: **{calorie_target} kcal** (TDEE 기반 계산)")
-    meals, protein_target = recommend_meals(calorie_target, weight, goal, preferred_food, mood, allergy, religion)
+    tdee = calculate_tdee(height, weight, age, gender, activity, goal)
+    st.success(f"하루 권장 칼로리: {tdee} kcal")
+    
+    meals, protein_target = recommend_meals(tdee, weight, goal, preferred_food, allergy, religion)
     
     st.markdown("### 🥗 오늘의 맞춤 식단")
     total_protein = 0
@@ -139,19 +148,14 @@ if st.button("식단 설계 시작하기"):
         for idx, row in df.iterrows():
             total_protein += row['protein']
             total_calories += row['calories']
-            st.markdown(f"""
-            <div class='card'>
-                <img src='{row['image_url']}'/>
-                <h4>{row['food']} ({row['category']})</h4>
-                <p>칼로리: {row['calories']} kcal | 단백질: {row['protein']} g | 탄수화물: {row['carbs']} g | 지방: {row['fat']} g</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='card'><h4>{row['food']} ({row['category']})</h4></div>", unsafe_allow_html=True)
+            st.image(row['image'])
+            st.write(f"칼로리: {row['calories']} | 단백질: {row['protein']} | 탄수화물: {row['carbs']} | 지방: {row['fat']}")
     
-    # 목표 달성 시각화
     st.markdown("### 💪 단백질 목표 달성률")
     st.progress(min(total_protein/protein_target,1.0))
     st.info(f"{total_protein:.1f} g / {protein_target:.1f} g")
     
     st.markdown("### 🔥 칼로리 목표 달성률")
-    st.progress(min(total_calories/calorie_target,1.0))
-    st.info(f"{total_calories:.1f} kcal / {calorie_target} kcal")
+    st.progress(min(total_calories/tdee,1.0))
+    st.info(f"{total_calories:.1f} kcal / {tdee} kcal")
