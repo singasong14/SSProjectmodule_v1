@@ -1,170 +1,317 @@
-# app.py
-# Streamlit 맞춤 영양식 키오스크 (완전 버전)
-# 특징: 음식 다양화 200+종, 카드 UI + 이미지, 달성률 그래프, 알레르기/종교/식사 패턴 반영
-# 실행: streamlit run app.py
+# Healicious Kiosk Streamlit App
+# Single-file Streamlit app built for a beautiful, touch-friendly kiosk experience.
+# Includes: polished UI, step-by-step user onboarding, nutrition calculation, meal recommendations,
+# allergy/religion filters, mood-aware suggestions, export, and fallback local food DB.
+# Also reads optional uploaded Excel DB at /mnt/data/20250408_음식DB.xlsx if available (for hosted envs).
+#
+# Requirements:
+# pip install streamlit pandas numpy pillow openpyxl
+# Run with: streamlit run Healicious_kiosk_app.py
 
 import streamlit as st
 import pandas as pd
-from math import floor
+import numpy as np
+from PIL import Image
+import io
+import os
+import base64
 
-st.set_page_config(page_title="맞춤 영양식 키오스크", layout="wide")
+st.set_page_config(page_title="Healicious Kiosk", layout="wide", page_icon="🥗")
 
-# -------------------------
-# 음식 DB 샘플 (실제는 CSV/JSON로 200~300개 확장 가능)
-# -------------------------
-FOOD_DB = [
-    {"id":1,"name":"닭가슴살(구이) 100g","serving":"100g","kcal":165,"protein":31,"carbs":0,"fat":3.6,"fiber":0,"sodium":60,"image":"https://i.imgur.com/3a3p0q0.jpg","type":"meat","allergens":[]},
-    {"id":2,"name":"현미밥 150g","serving":"150g","kcal":210,"protein":4.4,"carbs":45,"fat":1.8,"fiber":2.8,"sodium":5,"image":"https://i.imgur.com/E0RvL7n.jpg","type":"grain","allergens":[]},
-    {"id":3,"name":"계란(삶은) 1개","serving":"1개","kcal":78,"protein":6.5,"carbs":0.6,"fat":5.3,"fiber":0,"sodium":62,"image":"https://i.imgur.com/KcQ5t2M.jpg","type":"dairy","allergens":["egg"]},
-    {"id":4,"name":"연어(구이) 100g","serving":"100g","kcal":208,"protein":20,"carbs":0,"fat":13,"fiber":0,"sodium":50,"image":"https://i.imgur.com/TfZ6UUR.jpg","type":"fish","allergens":["fish"]},
-    {"id":5,"name":"브로콜리 찜 100g","serving":"100g","kcal":35,"protein":2.8,"carbs":7,"fat":0.4,"fiber":3,"sodium":30,"image":"https://i.imgur.com/Kw0MBqO.jpg","type":"veg","allergens":[]},
-    {"id":6,"name":"바나나 1개","serving":"1개","kcal":105,"protein":1.3,"carbs":27,"fat":0.3,"fiber":3.1,"sodium":1,"image":"https://i.imgur.com/6nQ1MVo.jpg","type":"fruit","allergens":[]},
-    {"id":7,"name":"그릭요거트 150g","serving":"150g","kcal":120,"protein":12,"carbs":8,"fat":4,"fiber":0,"sodium":55,"image":"https://i.imgur.com/dWrxjC2.jpg","type":"dairy","allergens":["milk"]},
-    {"id":8,"name":"아몬드 20g","serving":"20g","kcal":120,"protein":3,"carbs":4,"fat":10,"fiber":2,"sodium":0,"image":"https://i.imgur.com/p3A0Fvo.jpg","type":"nuts","allergens":["nuts"]},
-    {"id":9,"name":"두부 150g","serving":"150g","kcal":144,"protein":17,"carbs":3.8,"fat":8.5,"fiber":1.2,"sodium":12,"image":"https://i.imgur.com/Y7tZV2G.jpg","type":"plant","allergens":["soy"]},
-    {"id":10,"name":"고구마 150g","serving":"150g","kcal":130,"protein":2,"carbs":31,"fat":0.2,"fiber":3.8,"sodium":36,"image":"https://i.imgur.com/3a3p0q0.jpg","type":"grain","allergens":[]},
-    # 추가 음식: CSV/JSON로 확장 가능
-]
+# ----------------------
+# App CSS / Visual Theme
+# ----------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+html, body, [class*="css"], .stApp {
+  height: 100%;
+  background: linear-gradient(180deg, #f6fbf6 0%, #ffffff 60%);
+  font-family: 'Inter', sans-serif;
+}
+header[role="banner"] {display: none}
 
-# -------------------------
-# 헬퍼 함수
-# -------------------------
-def mifflin_bmr(weight, height, age, sex):
-    if sex=="남성":
-        return 10*weight + 6.25*height -5*age +5
+.kiosk-container {
+  padding: 28px 36px;
+}
+.brand {
+  display:flex; align-items:center; gap:18px; margin-bottom:14px;
+}
+.brand h1 { margin:0; font-size:36px; letter-spacing: -0.5px; }
+.brand p { margin:0; color:#6b7280; }
+
+.card {
+  background: white; border-radius:18px; padding:22px; box-shadow: 0 8px 30px rgba(20,30,50,0.06);
+}
+.big-button {
+  background: linear-gradient(90deg,#6ee7b7,#34d399); border-radius:12px; padding:18px 22px; color:#fff; font-weight:700; border:none; width:100%; font-size:20px; box-shadow: 0 10px 30px rgba(52,211,153,0.18);
+}
+.small-muted { color:#6b7280; font-size:13px; }
+.card-title { font-size:18px; font-weight:700; margin-bottom:8px }
+.food-card { border-radius:12px; padding:12px; }
+.food-name { font-weight:700 }
+
+/* touch-friendly controls */
+.stButton>button, .stSelectbox>div>div>div, .stTextInput>div>div>input, .stNumberInput>div>div>input {
+  touch-action: manipulation;
+}
+
+@media (max-width: 900px) {
+  .brand h1 { font-size:28px }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ----------------------
+# Helper functions
+# ----------------------
+
+def load_fallback_food_db():
+    # A small but curated fallback DB
+    return pd.DataFrame([
+        {"name": "그릴드 닭가슴살 샐러드", "carbs": 12, "protein": 34, "fat": 8, "cal": 320, "vegan": False, "halal": True, "tags": "salad,protein"},
+        {"name": "연어 아보카도 볼", "carbs": 10, "protein": 30, "fat": 22, "cal": 420, "vegan": False, "halal": True, "tags": "omega3"},
+        {"name": "키노아 비건 볼", "carbs": 46, "protein": 14, "fat": 10, "cal": 360, "vegan": True, "halal": True, "tags": "fiber,vegan"},
+        {"name": "두부 스테이크 & 야채", "carbs": 18, "protein": 26, "fat": 12, "cal": 300, "vegan": True, "halal": True, "tags": "soy"},
+        {"name": "현미 혼합 곡물밥 + 된장국", "carbs": 62, "protein": 14, "fat": 6, "cal": 380, "vegan": False, "halal": True, "tags": "carb,comfort"},
+        {"name": "계란과 채소 볶음밥 (저유지)", "carbs": 64, "protein": 22, "fat": 10, "cal": 410, "vegan": False, "halal": True, "tags": "quick"},
+    ])
+
+
+def try_load_user_db(path='/mnt/data/20250408_음식DB.xlsx'):
+    if os.path.exists(path):
+        try:
+            df = pd.read_excel(path)
+            # Basic normalization if columns exist
+            expected = ['name','carbs','protein','fat','cal','vegan','halal']
+            if all(col in df.columns for col in expected):
+                return df
+            else:
+                # try to map common names
+                cols = {c.lower():c for c in df.columns}
+                mapping = {}
+                for e in expected:
+                    if e in cols:
+                        mapping[cols[e]] = e
+                if mapping:
+                    return df.rename(columns=mapping)[expected]
+                return df
+        except Exception as e:
+            return None
+    return None
+
+
+def calc_daily_calories(weight, height, age, gender, activity):
+    # Mifflin-St Jeor BMR
+    if gender == '남성':
+        bmr = 10*weight + 6.25*height - 5*age + 5
     else:
-        return 10*weight + 6.25*height -5*age -161
+        bmr = 10*weight + 6.25*height - 5*age - 161
+    mult = {'낮음':1.2,'보통':1.45,'높음':1.7}
+    return int(bmr * mult.get(activity,1.45))
 
-def activity_factor(level):
-    return {"좌식":1.2,"가벼운 활동":1.375,"중간 활동":1.55,"격렬한 활동":1.725}.get(level,1.55)
 
-def safe_round(x):
-    return int(round(x))
+def recommend_meals(df, mood, goal, avoid_list, religion, topk=4):
+    # basic scoring: match goal and mood
+    scores = []
+    for _, row in df.iterrows():
+        s = 0
+        # protein preference for muscle/weight gain
+        if goal in ['근육 증가','체중 증가']:
+            s += row.get('protein',0)*1.5
+        if goal == '체중 감량':
+            s += -row.get('cal',0)/10
+        # mood tweaks
+        if mood == '피곤함':
+            s += row.get('protein',0)
+        if mood == '스트레스':
+            s += -abs(row.get('carbs',0)-40)  # prefer balanced carbs
+        scores.append(s)
+    df = df.copy()
+    df['score'] = scores
 
-def micronutrients_targets(age, sex):
-    return {"fiber":25 if sex=="남성" else 20, "iron":8 if sex=="남성" else 14, "calcium":800, "vitd":5}
+    # filters: allergies and religion
+    if avoid_list:
+        for a in avoid_list:
+            df = df[~df['name'].str.contains(a, case=False, na=False)]
+    if religion == '비건':
+        df = df[df['vegan']==True]
+    if religion == '할랄':
+        df = df[df['halal']==True]
 
-# -------------------------
-# 사용자 입력 (타입 안정성 확보)
-# -------------------------
-st.sidebar.header("사용자 정보 입력")
-age = st.sidebar.number_input("나이", min_value=1, max_value=120, value=30, step=1)
-sex = st.sidebar.selectbox("성별",["남성","여성"])
-height = st.sidebar.number_input("키(cm)", min_value=100, max_value=230, value=175, step=1)
-weight = st.sidebar.number_input("체중(kg)", min_value=30.0, max_value=200.0, value=70.0, step=0.1)
-activity = st.sidebar.selectbox("활동량 수준",["좌식","가벼운 활동","중간 활동","격렬한 활동"])
-goal = st.sidebar.selectbox("체중 목표",["감량","유지","증량"])
-meal_count = st.sidebar.selectbox("식사 횟수 선호",[2,3,4])
+    df = df.sort_values('score', ascending=False).head(topk)
+    return df
 
-st.sidebar.header("건강 / 알레르기")
-diseases = st.sidebar.multiselect("질환",["당뇨","고혈압","고지혈증","신장질환","위장질환"])
-allergies = st.sidebar.multiselect("알레르기",["우유","난류","견과류","대두","글루텐","갑각류"])
-diet_instruction = st.sidebar.selectbox("식이 지침",["없음","저염식","저지방","고단백"])
 
-st.sidebar.header("기호 / 생활패턴")
-likes = st.sidebar.text_input("선호 음식(콤마)", "")
-dislikes = st.sidebar.text_input("비선호 음식(콤마)", "")
-religion = st.sidebar.selectbox("종교/제한",["없음","채식(완전)","채식(락토/오보)","할랄/코셔"])
-cooking_ability = st.sidebar.selectbox("요리 가능 여부",["전자레인지","간단 조리","정식 조리"])
-budget = st.sidebar.selectbox("예산",["저(~1만)","중(1~2만)","고(2만↑)"])
+def make_downloadable_json(data):
+    b = data.to_json(orient='records', force_ascii=False)
+    b64 = base64.b64encode(b.encode()).decode()
+    href = f"data:application/json;base64,{b64}"
+    return href
 
-st.sidebar.header("목표 기반")
-main_goal = st.sidebar.multiselect("목표",["다이어트","근육 증가","체력 향상","영양 균형","특정 영양소 보충"])
-time_frame = st.sidebar.selectbox("기간",["1개월","3개월","6개월","기타"])
+# ----------------------
+# Load DB (user-provided Excel optional)
+# ----------------------
+user_db = try_load_user_db()
+if user_db is None:
+    food_db = load_fallback_food_db()
+else:
+    food_db = user_db
 
-# -------------------------
-# 식단 생성
-# -------------------------
-if st.sidebar.button("식단 생성"):
-    bmr = mifflin_bmr(weight,height,age,sex)
-    tdee = bmr*activity_factor(activity)
-    if goal=="감량":
-        kcal_target = max(1200,tdee-500)
-    elif goal=="증량":
-        kcal_target = tdee+300
-    else:
-        kcal_target = tdee
+# Ensure expected cols
+for c in ['name','carbs','protein','fat','cal','vegan','halal']:
+    if c not in food_db.columns:
+        # try to infer
+        if c == 'cal' and 'calories' in food_db.columns:
+            food_db = food_db.rename(columns={'calories':'cal'})
+        else:
+            food_db[c] = np.nan
 
-    protein_target = safe_round(weight*1.2) # 단백질 g (간단)
-    carbs_target = safe_round(kcal_target*0.5/4)
-    fat_target = safe_round((kcal_target - (protein_target*4 + carbs_target*4))/9)
-    micro_targets = micronutrients_targets(age,sex)
+# ----------------------
+# Kiosk layout and flow
+# ----------------------
 
-    # 알레르기/종교 필터
-    filtered_foods = []
-    for f in FOOD_DB:
-        if any(a in allergies for a in f.get("allergens",[])):
-            continue
-        if religion=="채식(완전)" and f["type"] in ["meat","fish","dairy"]:
-            continue
-        if religion=="채식(락토/오보)" and f["type"] in ["meat","fish"]:
-            continue
-        filtered_foods.append(f)
+if 'step' not in st.session_state:
+    st.session_state.step = 'welcome'
 
-    if not filtered_foods:
-        st.error("추천 가능한 음식이 없습니다. 제한을 완화하세요.")
-        st.stop()
+# Top header
+with st.container():
+    st.markdown('<div class="kiosk-container">', unsafe_allow_html=True)
+    col1, col2 = st.columns([2,1])
+    with col1:
+        st.markdown('<div class="brand"><img src="data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"56\" height=\"56\"><rect rx=\"12\" width=\"56\" height=\"56\" fill=\"%236ef0b0\"/><text x=\"50%\" y=\"54%\" font-size=\"30\" text-anchor=\"middle\" font-family=\"Inter\" fill=\"white\">H</text></svg>" style="height:56px; border-radius:12px;"/>
+                        <div><h1>Healicious Kiosk</h1><p class="small-muted">맞춤 식단을 빠르고 아름답게</p></div></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown('<div style="text-align:right"><p class="small-muted">터치에 최적화된 키오스크 모드</p></div>', unsafe_allow_html=True)
 
-    # 끼니별 분배
-    shares = [0.25,0.35,0.25,0.15][:meal_count]
-    meals = []
-    high_protein = sorted(filtered_foods,key=lambda x:x["protein"],reverse=True)
-    carb_sources = sorted(filtered_foods,key=lambda x:x["carbs"],reverse=True)
-    vegs = [f for f in filtered_foods if f["type"] in ["veg","fruit"]]
+# Main content depending on step
+if st.session_state.step == 'welcome':
+    st.markdown('\n')
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.write('')
+    c1, c2 = st.columns([2,1])
+    with c1:
+        st.markdown('<div class="card-title">안녕하세요! Healicious에 오신 것을 환영합니다.</div>', unsafe_allow_html=True)
+        st.write('건강 목표, 알레르기, 기분을 알려주시면 즉시 맞춤 식단을 설계해드립니다.')
+        st.write('시작하려면 아래의 버튼을 눌러주세요 — 키오스크에서 빠르게 사용할 수 있도록 설계되었습니다.')
+    with c2:
+        if st.button('시작하기', key='start', help='맞춤 식단 설계 시작'):
+            st.session_state.step = 'profile'
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    for i, share in enumerate(shares):
-        tk = safe_round(kcal_target*share)
-        meal = {"target_kcal":tk,"items":[],"kcal":0,"protein":0,"carbs":0,"fat":0}
-        # 단백질 아이템
-        prot_item = high_protein[i%len(high_protein)]
-        meal["items"].append({"food":prot_item,"qty":1})
-        meal["kcal"] += prot_item["kcal"]
-        meal["protein"] += prot_item["protein"]
-        meal["carbs"] += prot_item["carbs"]
-        meal["fat"] += prot_item["fat"]
+elif st.session_state.step == 'profile':
+    # Large form layout for touch
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">사용자 정보 입력</div>', unsafe_allow_html=True)
+    prof_col1, prof_col2, prof_col3 = st.columns([1,1,1])
+    with prof_col1:
+        name = st.text_input('이름 (닉네임)', value=st.session_state.get('name',''), placeholder='홍길동')
+        age = st.number_input('나이', min_value=10, max_value=100, value=int(st.session_state.get('age',30)))
+        gender = st.selectbox('성별', ['남성','여성'])
+    with prof_col2:
+        height = st.number_input('키 (cm)', min_value=120, max_value=230, value=int(st.session_state.get('height',170)))
+        weight = st.number_input('몸무게 (kg)', min_value=30, max_value=200, value=int(st.session_state.get('weight',70)))
+        activity = st.selectbox('활동 수준', ['낮음','보통','높음'])
+    with prof_col3:
+        goal = st.selectbox('건강 목표', ['유지','체중 감량','체중 증가','근육 증가','특정 부위 비율 개선'])
+        mood = st.selectbox('오늘 기분', ['상쾌함','피곤함','스트레스','우울함','그냥 배고픔'])
+        religion = st.selectbox('식이 제한(종교/이념)', ['없음','비건','할랄'])
 
-        # 탄수 아이템
-        j=0
-        while meal["kcal"]<tk-80 and j<len(carb_sources):
-            carb_choice = carb_sources[(i+j)%len(carb_sources)]
-            if carb_choice["id"]==prot_item["id"] and j<len(carb_sources)-1:
-                j+=1
-                continue
-            meal["items"].append({"food":carb_choice,"qty":1})
-            meal["kcal"] += carb_choice["kcal"]
-            meal["protein"] += carb_choice["protein"]
-            meal["carbs"] += carb_choice["carbs"]
-            meal["fat"] += carb_choice["fat"]
-            j+=1
+    st.markdown('---')
+    st.markdown('<div class="card-title">알레르기 및 피하고 싶은 재료</div>', unsafe_allow_html=True)
+    avoid = st.text_area('콤마(,)로 구분하여 입력 (예: 새우,우유,땅콩)')
 
-        # 채소/과일
-        for v in vegs[:2]:
-            meal["items"].append({"food":v,"qty":1})
-            meal["kcal"] += v["kcal"]
-            meal["protein"] += v["protein"]
-            meal["carbs"] += v["carbs"]
-            meal["fat"] += v["fat"]
+    st.markdown('<div style="margin-top:10px;">', unsafe_allow_html=True)
+    c1, c2 = st.columns([1,1])
+    with c1:
+        if st.button('뒤로', key='back_to_welcome'):
+            st.session_state.step = 'welcome'
+    with c2:
+        if st.button('다음 — 추천 생성', key='to_reco'):
+            # save to state
+            st.session_state.update({'name':name,'age':age,'gender':gender,'height':height,'weight':weight,'activity':activity,'goal':goal,'mood':mood,'religion':religion,'avoid':avoid})
+            st.session_state.step = 'results'
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        meals.append(meal)
+elif st.session_state.step == 'results':
+    # Compute recommendations
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">맞춤 추천 결과</div>', unsafe_allow_html=True)
+    # gather
+    name = st.session_state.get('name')
+    age = st.session_state.get('age')
+    height = st.session_state.get('height')
+    weight = st.session_state.get('weight')
+    gender = st.session_state.get('gender')
+    activity = st.session_state.get('activity')
+    goal = st.session_state.get('goal')
+    mood = st.session_state.get('mood')
+    religion = st.session_state.get('religion')
+    avoid = st.session_state.get('avoid','')
+    avoid_list = [a.strip() for a in avoid.split(',') if a.strip()]
 
-    # -------------------------
-    # 출력 UI (카드 + 이미지)
-    # -------------------------
-    st.header("🍽 추천 식단 (1일)")
-    for idx, m in enumerate(meals):
-        st.subheader(f"끼니 {idx+1} (목표 {m['target_kcal']} kcal)")
-        cols = st.columns(len(m["items"]))
-        for i, it in enumerate(m["items"]):
-            food = it["food"]
-            cols[i].image(food["image"], width=120)
-            cols[i].markdown(f"**{food['name']}**\n{food['serving']}\n칼로리:{food['kcal']} kcal\n단백질:{food['protein']}g\n탄수:{food['carbs']}g\n지방:{food['fat']}g")
+    daily_cal = calc_daily_calories(weight, height, age, gender, activity)
+    st.metric(label='권장 일일 칼로리 (kcal)', value=f"{daily_cal} kcal")
 
-    st.subheader("📊 하루 총합")
-    total_kcal = sum(m["kcal"] for m in meals)
-    total_protein = sum(m["protein"] for m in meals)
-    total_carbs = sum(m["carbs"] for m in meals)
-    total_fat = sum(m["fat"] for m in meals)
-    st.write(f"칼로리:{total_kcal} kcal / 단백질:{total_protein}g / 탄수:{total_carbs}g / 지방:{total_fat}g")
+    # recommend meals
+    recs = recommend_meals(food_db.fillna(0), mood, goal, avoid_list, religion, topk=6)
 
-    st.subheader("✅ 달성률")
-    st.progress(min(100,int(total_kcal/kcal_target*100)))
+    # show as cards
+    cols = st.columns(3)
+    for i, (_, row) in enumerate(recs.iterrows()):
+        c = cols[i%3]
+        with c:
+            st.markdown('<div class="card food-card">', unsafe_allow_html=True)
+            st.markdown(f"<div class='food-name'>{row['name']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='small-muted'>칼로리: {int(row.get('cal',0))} kcal · 탄수화물: {int(row.get('carbs',0))}g · 단백질: {int(row.get('protein',0))}g</div>", unsafe_allow_html=True)
+            st.write('')
+            if st.button(f"상세보기_{i}"):
+                st.session_state['detail'] = row.to_dict()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('---')
+    # detail pane
+    if 'detail' in st.session_state:
+        d = st.session_state['detail']
+        st.subheader('상세 영양 정보')
+        st.write(d)
+
+    # Nearby restaurants mock
+    st.markdown('<div class="card-title">근처 음식점 추천</div>', unsafe_allow_html=True)
+    # A simple mock list — in real deployment, integrate Maps/Places API
+    nearby = []
+    for _, r in food_db.iterrows():
+        # pretend some restaurants offer those menus
+        if pd.notna(r.get('name')) and len(nearby) < 4:
+            nearby.append({'name': f"{r['name']} 전문점", 'menu': r['name'], 'distance': np.random.randint(150,900)})
+
+    nr_cols = st.columns(len(nearby))
+    for i, n in enumerate(nearby):
+        with nr_cols[i]:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f"**{n['name']}**")
+            st.markdown(f"{n['menu']} · {n['distance']}m")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('---')
+    c1, c2, c3 = st.columns([1,1,1])
+    with c1:
+        if st.button('다시하기'):
+            st.session_state.step = 'profile'
+    with c2:
+        if st.button('새 세션 (홈으로)'):
+            st.session_state.clear()
+            st.experimental_rerun()
+    with c3:
+        # download recommendations
+        if not recs.empty:
+            href = make_downloadable_json(recs)
+            st.markdown(f"[추천 결과 다운로드(JSON)]({href})")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown('<div style="height:30px"></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center; color:#9ca3af; font-size:12px">Healicious — Designed for kiosks · Privacy-friendly demo</div>', unsafe_allow_html=True)
+
+# End of file
