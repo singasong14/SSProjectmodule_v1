@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
+import plotly.graph_objects as go
+import random
 
 # =============================
 # PAGE CONFIG
@@ -36,30 +37,27 @@ body {background: #f5f7fa;}
 .card {padding:15px; border-radius:12px; background:white; box-shadow:0 4px 10px rgba(0,0,0,0.05); margin-bottom:15px;}
 .card h4 {margin:0; color:#333;}
 .card p {margin:3px 0; color:#555;}
+.card img {width:100%; max-height:150px; object-fit:cover; border-radius:8px; margin-bottom:5px;}
 </style>
 """, unsafe_allow_html=True)
 
 # =============================
-# FOOD DATABASE
+# FOOD DATABASE (예시)
 # =============================
 def load_food_database():
-    # 확장된 예시
-    default_data = pd.DataFrame({
-        "food": ["닭가슴살","연어","계란찜","두부조림","현미밥","고구마","시금치나물","김치","아몬드","두유"],
-        "category": ["단백질","단백질","단백질","단백질반찬","주식","주식","채소반찬","채소반찬","서브메뉴","서브메뉴"],
-        "calories":[165,208,140,120,210,130,35,15,50,80],
-        "protein":[31,20,12,10,4,2,3,1,2,5],
-        "carbs":[0,0,4,5,44,30,4,2,2,8],
-        "fat":[3.6,13,6,6,2,0.1,0.5,0,4,3],
-        "tags":[[],["omega3"],[],[],[],[],[],["fermented"],[],[]]
-    })
-    file_path = "/mnt/data/20250408_음식DB.xlsx"
-    if os.path.exists(file_path):
-        try:
-            return pd.read_excel(file_path)
-        except:
-            return default_data
-    return default_data
+    data = [
+        {"food":"닭가슴살","category":"단백질","calories":165,"protein":31,"carbs":0,"fat":3.6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/0Xb3Fsz.jpg"},
+        {"food":"연어","category":"단백질","calories":208,"protein":20,"carbs":0,"fat":13,"fiber":0,"vitaminC":0,"omega3":1.2,"tags":["omega3"],"image_url":"https://i.imgur.com/qVOVtZP.jpg"},
+        {"food":"계란찜","category":"단백질반찬","calories":140,"protein":12,"carbs":4,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/TxAfiFt.jpg"},
+        {"food":"두부조림","category":"단백질반찬","calories":120,"protein":10,"carbs":5,"fat":6,"fiber":0,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/2sT6uOY.jpg"},
+        {"food":"현미밥","category":"주식","calories":210,"protein":4,"carbs":44,"fat":2,"fiber":3,"vitaminC":0,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/7aXJ3HW.jpg"},
+        {"food":"고구마","category":"주식","calories":130,"protein":2,"carbs":30,"fat":0.1,"fiber":2.5,"vitaminC":20,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/3rQgj9b.jpg"},
+        {"food":"시금치나물","category":"채소반찬","calories":35,"protein":3,"carbs":4,"fat":0.5,"fiber":2.7,"vitaminC":28,"omega3":0,"tags":[],"image_url":"https://i.imgur.com/Q06R1yO.jpg"},
+        {"food":"김치","category":"채소반찬","calories":15,"protein":1,"carbs":2,"fat":0,"fiber":1.5,"vitaminC":10,"omega3":0,"tags":["fermented"],"image_url":"https://i.imgur.com/kbWt0uQ.jpg"},
+        {"food":"아몬드","category":"서브메뉴","calories":50,"protein":2,"carbs":2,"fat":4,"fiber":1,"vitaminC":0,"omega3":0,"tags":["nut"],"image_url":"https://i.imgur.com/xlMIKJP.jpg"},
+        {"food":"두유","category":"서브메뉴","calories":80,"protein":5,"carbs":8,"fat":3,"fiber":1,"vitaminC":0,"omega3":0,"tags":["vegan"],"image_url":"https://i.imgur.com/kE2E7kE.jpg"},
+    ]
+    return pd.DataFrame(data)
 
 FOOD_DB = load_food_database()
 
@@ -102,46 +100,67 @@ def calculate_daily_calories(height, weight, age, gender, activity, goal):
 # SCIENTIFIC MEAL RECOMMENDER
 # =============================
 def recommend_meals_scientific(calorie_target, weight, goal, preferred_food="", mood="", allergy="", religion=""):
-    df=FOOD_DB.copy()
+    df = FOOD_DB.copy()
+    
     # 필터
     if allergy: df = df[~df['tags'].apply(lambda x: allergy in x)]
     if religion: df = df[~df['tags'].apply(lambda x: religion in x)]
     if preferred_food: df = df[df['food'].str.contains(preferred_food, na=False)]
     
-    # 하루 권장 단백질
     protein_target = weight*1.5 if goal=="근육 증가" else weight*1.2
-    
     meal_ratio = {"아침":0.25,"점심":0.35,"저녁":0.35}
-    meals={}
+    meals = {}
     
     for meal, ratio in meal_ratio.items():
-        meal_cal = calorie_target*ratio
         meal_items=[]
         for cat in ["주식","단백질","채소반찬","서브메뉴"]:
             temp = df[df['category']==cat]
             if len(temp)==0: continue
+            # Mood 기반 가중치
+            if mood=="피곤함" and cat=="단백질":
+                temp = temp.sample(frac=1)  # 랜덤 + 중요도
             meal_items.append(temp.sample(1))
-        meals[meal]=pd.concat(meal_items)
+        meals[meal] = pd.concat(meal_items)
     return meals, protein_target
 
 # =============================
 # RUN SYSTEM
 # =============================
 if st.button("식단 설계 시작하기"):
-    calorie_target=calculate_daily_calories(height, weight, age, gender, activity, goal)
-    st.success(f"하루 권장 칼로리: **{calorie_target} kcal**")
-    
+    calorie_target = calculate_daily_calories(height, weight, age, gender, activity, goal)
+    st.success(f"하루 권장 칼로리: **{calorie_target} kcal** (TDEE 기반 계산)")
+
     meals, protein_target = recommend_meals_scientific(calorie_target, weight, goal, preferred_food, mood, allergy, religion)
     
-    st.markdown("### 🥗 오늘의 맞춤 식단 (아침/점심/저녁)")
+    st.markdown("### 🥗 오늘의 맞춤 식단")
+    total_protein = 0
+    total_calories = 0
+    
     for meal_name, df in meals.items():
         st.markdown(f"#### {meal_name}")
         for idx, row in df.iterrows():
+            total_protein += row['protein']
+            total_calories += row['calories']
             st.markdown(f"""
             <div class='card'>
+                <img src='{row['image_url']}'/>
                 <h4>{row['food']} ({row['category']})</h4>
                 <p>칼로리: {row['calories']} kcal | 단백질: {row['protein']}g | 탄수화물: {row['carbs']}g | 지방: {row['fat']}g</p>
             </div>
             """, unsafe_allow_html=True)
-    total_protein=sum([row['protein'] for df in meals.values() for idx,row in df.iterrows()])
+    
+    # 하루 목표 시각화
     st.info(f"하루 총 단백질: {total_protein:.1f}g (목표: {protein_target:.1f}g)")
+    
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = total_protein,
+        domain = {'x':[0,1],'y':[0,1]},
+        title = {'text': "단백질 목표 달성률"},
+        delta = {'reference': protein_target},
+        gauge = {'axis':{'range':[0, protein_target*1.2]},
+                 'bar':{'color':'blue'}}
+    ))
+    st.plotly_chart(fig)
+    
+    st.info(f"하루 총 칼로리: {total_calories:.1f} kcal (목표: {calorie_target} kcal)")
