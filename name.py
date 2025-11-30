@@ -122,12 +122,11 @@ with st.container():
             ["체중 감량", "체중 증가", "유지", "체지방 감소", "근육 증가"]
         )
 
-        preferred_food = st.text_input("좋아하는 음식 또는 오늘 땡기는 음식")
+        preferred_food = st.text_input("좋아하는 음식 또는 오늘 떙기는 음식")
         mood = st.selectbox("오늘 기분", ["피곤함", "상쾌함", "보통", "스트레스", "기운 없음"])
 
         allergy = st.text_input("알레르기 (예: 땅콩, 새우 등)")
         religion = st.text_input("종교적/이념적 이유로 못 먹는 음식")
-
 
 # =============================
 # CALORIE CALCULATION
@@ -152,51 +151,25 @@ def calculate_daily_calories(height, weight, age, gender, activity, goal):
 
 
 # =============================
-# IMPROVED MEAL RECOMMENDER
+# MEAL RECOMMENDER
 # =============================
-def recommend_meals(calorie_target, preferred_food="", mood="", allergy="", religion="", n_recommend=12):
+def recommend_meals(calorie_target, preferred_food="", mood="", allergy="", religion=""):
     df = FOOD_DB.copy()
 
-    # ---------- 1. 필터링 ----------
     if preferred_food:
-        df["preference_score"] = df["food"].str.contains(preferred_food, na=False).astype(int)
-    else:
-        df["preference_score"] = 0
-    
+        df = df[df["food"].str.contains(preferred_food, na=False)]
+
     if allergy:
         df = df[~df["food"].str.contains(allergy, na=False)]
 
     if religion:
         df = df[~df["food"].str.contains(religion, na=False)]
 
-    # 빈 데이터 방지
     if len(df) == 0:
-        df = FOOD_DB.copy()
+        df = FOOD_DB.sample(3)
 
-    # ---------- 2. 기분 기반 가중치 ----------
-    mood_keywords = {
-        "피곤함": ["단백질", "고기", "닭", "계란", "연어"],
-        "상쾌함": ["샐러드", "야채", "채소"],
-        "스트레스": ["고구마", "현미", "든든"],
-        "기운 없음": ["밥", "면", "고구마"],
-        "보통": []
-    }
-
-    mood_list = mood_keywords.get(mood, [])
-    df["mood_score"] = df["food"].apply(lambda x: sum(k in x for k in mood_list))
-
-    # ---------- 3. 종합 점수 ----------
-    df["total_score"] = df["preference_score"] * 2 + df["mood_score"]
-
-    # ---------- 4. 정렬 후 n개 선택 ----------
-    df = df.sort_values("total_score", ascending=False)
-
-    if len(df) >= n_recommend:
-        return df.head(n_recommend)
-    else:
-        needed = n_recommend - len(df)
-        additional = FOOD_DB.sample(needed)
-        return pd.concat([df, additional]).head(n_recommend)
+    df = df.sample(3)
+    return df
 
 
 # =============================
@@ -210,18 +183,16 @@ if run:
     calorie_target = calculate_daily_calories(height, weight, age, gender, activity, goal)
     st.success(f"하루 권장 칼로리: **{calorie_target} kcal**")
 
-    # 🔥 드디어 개선된 추천 12개 출력!
     meals = recommend_meals(
         calorie_target,
         preferred_food,
         mood,
         allergy,
-        religion,
-        n_recommend=12
+        religion
     )
 
-    st.write("### 오늘 추천 식단 (12가지!)")
-    st.dataframe(meals[["food", "calories", "protein", "carbs", "fat"]])
+    st.write("### 오늘 추천 식단")
+    st.dataframe(meals)
 
     # =============================
     # RESTAURANT RECOMMENDER (DEMO)
@@ -237,3 +208,4 @@ if run:
     st.dataframe(demo_restaurants)
 
     st.info("※ 실제 위치 기반 추천은 Google Places / Kakao Local API 연동 시 활성화됩니다.")
+
