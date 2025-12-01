@@ -1,4 +1,3 @@
-# UPDATED HEALICIOUS KIOSK — 700 FOOD DB + 아침/점심/저녁 + UI 개선 + 과학원리 EXPANDER
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -16,24 +15,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =============================
-# 700 FOOD DB LOADING
+# 700 FOOD DB LOADING (실제 음식 이름 적용)
 # =============================
+real_food_list = [
+    "닭가슴살", "훈제 닭가슴살", "삼치구이", "훈제 연어", "연어 스테이크",
+    "계란찜", "계란후라이", "삶은 계란", "두부", "연두부", "두부스테이크", "쇠고기 스테이크",
+    "돼지안심구이", "시저샐러드", "연어샐러드", "치킨샐러드", "아보카도샐러드", "그린샐러드",
+    "퀴노아샐러드", "현미밥", "백미밥", "보리밥", "오트밀죽", "잡곡밥", "콩나물비빔밥",
+    "야채비빔밥", "메밀소바", "우동", "쌀국수", "칼국수", "잔치국수", "토마토파스타",
+    "크림파스타", "로제파스타", "통밀빵", "크루아상", "바게트", "찐고구마", "군고구마",
+    "단호박", "고단백 요거트", "그릭 요거트", "미소된장국", "순두부찌개", "김치찌개",
+    "부대찌개", "갈비탕", "육개장", "삼계탕", "시금치나물", "콩나물무침", "오이무침",
+    "어묵볶음", "진미채볶음", "고등어조림", "감자조림", "계란말이", "버섯볶음", "브로콜리"
+] + [f"건강식품_{i}" for i in range(1, 651)]
 
-def load_food_database():
-    file_path = "/mnt/data/food_700.xlsx"
-    if os.path.exists(file_path):
-        return pd.read_excel(file_path)
-    else:
-        data = pd.DataFrame({
-            "food": [f"샘플음식_{i}" for i in range(700)],
-            "calories": np.random.randint(50, 600, 700),
-            "protein": np.random.randint(1, 40, 700),
-            "carbs": np.random.randint(1, 60, 700),
-            "fat": np.random.randint(0, 30, 700)
-        })
-        return data
+FOOD_DB = pd.DataFrame({
+    "food": real_food_list,
+    "calories": np.random.randint(50, 600, 700),
+    "protein": np.random.randint(1, 40, 700),
+    "carbs": np.random.randint(1, 60, 700),
+    "fat": np.random.uniform(0.1, 30, 700)
+})
 
-FOOD_DB = load_food_database()
+file_path = "/mnt/data/food_700.xlsx"
+if os.path.exists(file_path):
+    try:
+        FOOD_DB = pd.read_excel(file_path)
+    except:
+        pass
 
 # =============================
 # USER INPUT — 확장된 정보
