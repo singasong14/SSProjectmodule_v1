@@ -8,14 +8,19 @@ import altair as alt
 import logging
 import traceback
 import datetime
+import requests
+import folium
+from streamlit_folium import st_folium
 
 # -------------------------
 # 페이지 설정
 # -------------------------
-st.set_page_config(page_title="Healicious", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Healicious", layout="wide", initial_sidebar_state="expanded")
+st.title("Healicious - 개인화 영양식 설계")
+st.caption("승주님을 위한 안전한 예외 처리·UX 개선·과학적 근거·인근 식당 추천 통합 버전")
 
 # -------------------------
-# 로거 설정 (안전하게)
+# 로거 설정 (안전)
 # -------------------------
 def setup_logger(log_path="healicious_error.log"):
     logger = logging.getLogger("healicious_logger")
@@ -27,7 +32,6 @@ def setup_logger(log_path="healicious_error.log"):
             handler.setFormatter(formatter)
             logger.addHandler(handler)
         except Exception:
-            # 파일 쓰기 실패 시 콘솔 핸들러로 대체 (앱 중단 방지)
             ch = logging.StreamHandler()
             ch.setLevel(logging.ERROR)
             logger.addHandler(ch)
@@ -64,7 +68,6 @@ def safe_show_altair(df, enc_x, enc_y, enc_color=None, tooltip=None, width=600, 
     except Exception:
         tb = traceback.format_exc()
         logger.error("차트 생성 중 예외 발생:\n%s", tb)
-        # 로그에 추가 기록
         try:
             with open("healicious_error.log", "a", encoding="utf-8") as f:
                 f.write(f"\n--- {datetime.datetime.now().isoformat()} ---\n")
@@ -77,18 +80,21 @@ def safe_show_altair(df, enc_x, enc_y, enc_color=None, tooltip=None, width=600, 
 # 헬퍼: 거리계산(Haversine)
 # -------------------------
 def haversine(lat1, lon1, lat2, lon2):
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
-    c = 2 * asin(sqrt(a))
-    km = 6371 * c
-    return km
+    try:
+        lat1, lon1, lat2, lon2 = map(radians, [float(lat1), float(lon1), float(lat2), float(lon2)])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+        c = 2 * asin(sqrt(a))
+        km = 6371 * c
+        return km
+    except Exception:
+        return float("inf")
 
 # -------------------------
 # DB 로드: 외부 우선, 내장 기본 제공
 # -------------------------
-def load_food_database(target_count=800):
+def load_food_database(target_count=700):
     file_2000 = "/mnt/data/food_2000.xlsx"
     file_700 = "/mnt/data/food_700.xlsx"
     file_custom = "/mnt/data/20250408_음식DB.xlsx"
@@ -104,7 +110,6 @@ def load_food_database(target_count=800):
             except Exception as e:
                 st.sidebar.warning(f"{os.path.basename(p)} 로드 실패: {e}")
 
-    # 외부 파일 없으면 내장 DB 생성
     base = [
         ("닭가슴살 구이(100g)",165,31,0,3.6,"단백질","chicken,protein"),
         ("훈제연어(100g)",200,20,3,12,"단백질","salmon,omega3"),
@@ -186,64 +191,81 @@ def load_food_database(target_count=800):
 
     df = pd.DataFrame(rows, columns=["food","calories","protein","carbs","fat","category","tags"])
     df = df.reset_index(drop=True)
-    st.sidebar.info(f"내장 DB 사용: {len(df)}개")
     return df
 
 # FOOD_DB 전역 초기화
 FOOD_DB = load_food_database(target_count=700)
 
 # -------------------------
-# 간단 추천 함수
+# 추천 및 조합 로직
 # -------------------------
 def recommend_meals_simple(target_cal, preferred_food="", allergy="", religion="", diet_pref=None, top_n=6):
     df = FOOD_DB.copy()
     if preferred_food:
-        df = df[df["food"].str.contains(preferred_food, na=False)]
+        try:
+            df = df[df["food"].str.contains(preferred_food, na=False)]
+        except Exception:
+            pass
     if allergy:
         for a in [x.strip() for x in allergy.split(",") if x.strip()]:
-            df = df[~df["food"].str.contains(a, na=False)]
+            try:
+                df = df[~df["food"].str.contains(a, na=False)]
+            except Exception:
+                pass
     if religion:
         for r in [x.strip() for x in religion.split(",") if x.strip()]:
-            df = df[~df["food"].str.contains(r, na=False)]
+            try:
+                df = df[~df["food"].str.contains(r, na=False)]
+            except Exception:
+                pass
     if len(df) == 0:
         df = FOOD_DB.copy()
-    df["cal_diff"] = (df["calories"] - target_cal).abs()
+    try:
+        df["cal_diff"] = (pd.to_numeric(df["calories"], errors="coerce") - float(target_cal)).abs()
+    except Exception:
+        df["cal_diff"] = 999999
     df = df.sort_values("cal_diff")
     return df.head(top_n)[["food","calories","protein","carbs","fat","category","tags"]]
 
-# 더 정교한 조합 탐색(메인 단백질+곡류+채소)
 def find_best_meal_combination(target_cal, protein_target_meal, available_db, used_foods=set(), required_tags=set(), sample_size=20, top_k=30):
-    df = available_db.copy()
-    df = df[~df["food"].isin(used_foods)]
-    protein_candidates = df[df["category"].str.contains("단백질|protein|meat|fish|tofu", na=False, case=False)]
-    grain_candidates = df[df["category"].str.contains("곡류|밥|grain|pasta|bread|면", na=False, case=False)]
-    veg_candidates = df[df["category"].str.contains("채소|샐러드|vegetable|야채", na=False, case=False)]
-    if protein_candidates.empty: protein_candidates = df
-    if grain_candidates.empty: grain_candidates = df
-    if veg_candidates.empty: veg_candidates = df
+    try:
+        df = available_db.copy()
+        df = df[~df["food"].isin(used_foods)]
+        protein_candidates = df[df["category"].str.contains("단백질|protein|meat|fish|tofu", na=False, case=False)]
+        grain_candidates = df[df["category"].str.contains("곡류|밥|grain|pasta|bread|면", na=False, case=False)]
+        veg_candidates = df[df["category"].str.contains("채소|샐러드|vegetable|야채", na=False, case=False)]
+        if protein_candidates.empty: protein_candidates = df
+        if grain_candidates.empty: grain_candidates = df
+        if veg_candidates.empty: veg_candidates = df
 
-    prot_sample = protein_candidates.sample(min(sample_size, len(protein_candidates)), random_state=42)
-    grain_sample = grain_candidates.sample(min(sample_size, len(grain_candidates)), random_state=43)
-    veg_sample = veg_candidates.sample(min(sample_size, len(veg_candidates)), random_state=44)
+        prot_sample = protein_candidates.sample(min(sample_size, len(protein_candidates)), random_state=42)
+        grain_sample = grain_candidates.sample(min(sample_size, len(grain_candidates)), random_state=43)
+        veg_sample = veg_candidates.sample(min(sample_size, len(veg_candidates)), random_state=44)
 
-    combos = []
-    for _, p in prot_sample.iterrows():
-        for _, g in grain_sample.iterrows():
-            for _, v in veg_sample.iterrows():
-                total_cal = float(p["calories"]) + float(g["calories"]) + float(v["calories"])
-                total_prot = float(p["protein"]) + float(g["protein"]) + float(v["protein"])
-                cal_diff = abs(total_cal - target_cal)
-                prot_diff = max(0, protein_target_meal - total_prot)
-                tag_bonus = 0
-                for t in required_tags:
-                    if str(p["tags"]).find(t) >= 0 or str(g["tags"]).find(t) >= 0 or str(v["tags"]).find(t) >= 0:
-                        tag_bonus += 1
-                score = cal_diff + prot_diff*8 - tag_bonus*6
-                combos.append({"foods":[p["food"], g["food"], v["food"]],
-                               "cal": total_cal, "protein": total_prot, "score": score,
-                               "tags": f"{p['tags']},{g['tags']},{v['tags']}"})
-    combos_sorted = sorted(combos, key=lambda x: x["score"])
-    return combos_sorted[:top_k]
+        combos = []
+        for _, p in prot_sample.iterrows():
+            for _, g in grain_sample.iterrows():
+                for _, v in veg_sample.iterrows():
+                    total_cal = float(p.get("calories",0)) + float(g.get("calories",0)) + float(v.get("calories",0))
+                    total_prot = float(p.get("protein",0)) + float(g.get("protein",0)) + float(v.get("protein",0))
+                    cal_diff = abs(total_cal - float(target_cal))
+                    prot_diff = max(0, protein_target_meal - total_prot)
+                    tag_bonus = 0
+                    for t in required_tags:
+                        try:
+                            if str(p.get("tags","")).find(t) >= 0 or str(g.get("tags","")).find(t) >= 0 or str(v.get("tags","")).find(t) >= 0:
+                                tag_bonus += 1
+                        except Exception:
+                            pass
+                    score = cal_diff + prot_diff*8 - tag_bonus*6
+                    combos.append({"foods":[p.get("food",""), g.get("food",""), v.get("food","")],
+                                   "cal": total_cal, "protein": total_prot, "score": score,
+                                   "tags": f"{p.get('tags','')},{g.get('tags','')},{v.get('tags','')}"})
+        combos_sorted = sorted(combos, key=lambda x: x["score"])
+        return combos_sorted[:top_k]
+    except Exception:
+        logger.error("combo error:\n%s", traceback.format_exc())
+        return []
 
 def plan_full_day(meal_targets, protein_daily_target, db, diet_pref=None, allergy_list=None, religion_list=None):
     if allergy_list is None:
@@ -252,9 +274,15 @@ def plan_full_day(meal_targets, protein_daily_target, db, diet_pref=None, allerg
         religion_list = []
     df = db.copy()
     for a in allergy_list:
-        df = df[~df["food"].str.contains(a, na=False)]
+        try:
+            df = df[~df["food"].str.contains(a, na=False)]
+        except Exception:
+            pass
     for r in religion_list:
-        df = df[~df["food"].str.contains(r, na=False)]
+        try:
+            df = df[~df["food"].str.contains(r, na=False)]
+        except Exception:
+            pass
 
     protein_break = round(protein_daily_target * 0.3)
     protein_lunch = round(protein_daily_target * 0.4)
@@ -271,58 +299,82 @@ def plan_full_day(meal_targets, protein_daily_target, db, diet_pref=None, allerg
         if not combos:
             sel = recommend_meals_simple(meal_targets[meal], top_n=3)
             day_plan[meal] = {"type":"table", "data":sel}
-            used.update(sel["food"].tolist())
-            df = df[~df["food"].isin(used)]
+            try:
+                used.update(sel["food"].tolist())
+            except Exception:
+                pass
+            df = df[~df["food"].isin(used)] if not df.empty else df
             continue
         best = combos[0]
         day_plan[meal] = {"type":"combo", "data":best}
         used.update(best["foods"])
-        df = df[~df["food"].isin(used)]
+        df = df[~df["food"].isin(used)] if not df.empty else df
     return day_plan
 
 # -------------------------
-# 간단 에너지/단백질 계산 (기본값)
+# 간단 에너지/단백질 계산
 # -------------------------
 def calculate_daily_calories(height_cm, weight_kg, age, gender, activity_factor, goal):
-    # Mifflin-St Jeor 간단 구현 (성별 male/female)
     try:
-        if gender.lower() in ["male","m","남","남자"]:
+        if isinstance(gender, str) and gender.lower() in ["male","m","남","남자"]:
             s = 5
         else:
             s = -161
         bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + s
         tdee = bmr * activity_factor
         if goal == "체중 감량":
-            tdee = tdee - 500
+            tdee = tdee - 300
         elif goal == "체중 증가":
-            tdee = tdee + 400
+            tdee = tdee + 300
+        elif goal == "근육 증가":
+            tdee = tdee + 150
         return max(1100, round(tdee))
     except Exception:
         logger.error("calorie calc error:\n%s", traceback.format_exc())
         return 2000
 
 def calculate_protein_target(weight_kg, goal):
-    # 목표에 따라 g/kg 설정
     try:
-        if goal == "근육 증가" or goal == "체중 증가":
+        if goal in ["근육 증가","체중 증가"]:
             per_kg = 1.8
-        elif goal == "체중 감량" or goal == "체지방 감소":
+        elif goal in ["체중 감량","체지방 감소"]:
             per_kg = 1.6
         else:
             per_kg = 1.2
         return int(round(weight_kg * per_kg))
     except Exception:
         logger.error("protein calc error:\n%s", traceback.format_exc())
-        return int(round(60))
+        return 60
 
 # -------------------------
-# UI: 입력 폼
+# NEARBY RESTAURANTS 샘플 또는 CSV 로드
 # -------------------------
-st.title("Healicious - 개인화 영양식 설계")
-st.caption("승주님을 위해 안전하게 예외를 처리하는 버전입니다.")
+NEARBY_CSV = "/mnt/data/nearby_restaurants.csv"
+if os.path.exists(NEARBY_CSV):
+    try:
+        NEARBY_RESTAURANTS = pd.read_csv(NEARBY_CSV)
+    except Exception:
+        NEARBY_RESTAURANTS = pd.DataFrame([
+            {"name":"샘플식당A","category":"한식","est_cal":600,"lat":37.596,"lon":127.019},
+            {"name":"샘플카페B","category":"카페","est_cal":300,"lat":37.597,"lon":127.018},
+        ])
+else:
+    # 기본 샘플 데이터 (하나고 인근 예시 좌표 사용)
+    NEARBY_RESTAURANTS = pd.DataFrame([
+        {"name":"샘플식당A","category":"한식","est_cal":600,"lat":37.5938,"lon":127.0200},
+        {"name":"샘플분식B","category":"분식","est_cal":450,"lat":37.5945,"lon":127.0210},
+        {"name":"샘플카페C","category":"카페","est_cal":350,"lat":37.5925,"lon":127.0195},
+    ])
 
+# 하나고등학교 좌표 기본값 (대체 가능)
+HANAGOODGE_LAT = 37.5940
+HANAGOODGE_LON = 127.0200
+
+# -------------------------
+# 사이드바: 입력 및 설정(UI 개선)
+# -------------------------
 with st.sidebar.form(key="user_input"):
-    st.header("기본 정보")
+    st.header("기본 정보 입력")
     height = st.number_input("키(cm)", min_value=100, max_value=230, value=170)
     weight = st.number_input("몸무게(kg)", min_value=30.0, max_value=200.0, value=65.0)
     age = st.number_input("나이", min_value=10, max_value=120, value=17)
@@ -332,66 +384,171 @@ with st.sidebar.form(key="user_input"):
     preferred_food = st.text_input("선호 음식 (쉼표로 복수 가능)", value="")
     allergy = st.text_input("알레르기(쉼표로 구분)", value="")
     religion = st.text_input("종교 제한(쉼표로 구분)", value="")
-    submit = st.form_submit_button("저장")
+    debug_mode = st.checkbox("디버그 모드(개발자용)", value=False)
+    reload_db = st.form_submit_button("저장 및 적용")
 
-# 기본값 보장
-if 'preferred_food' not in locals():
-    preferred_food = ""
-if 'allergy' not in locals():
-    allergy = ""
-if 'religion' not in locals():
-    religion = ""
+if reload_db:
+    try:
+        FOOD_DB = load_food_database(target_count=700)
+        st.sidebar.success("DB 재로딩 완료")
+    except Exception:
+        st.sidebar.warning("DB 재로딩 중 문제가 발생했습니다. 로그 확인 필요.")
+
+preferred_food = preferred_food or ""
+allergy = allergy or ""
+religion = religion or ""
 
 # -------------------------
-# 실행 버튼 및 출력
+# 메인: 실행 및 결과 표시
 # -------------------------
 if st.button("🍽️ 식단 설계 시작하기"):
     try:
         tdee = calculate_daily_calories(height, weight, age, gender, activity, goal)
         protein_target = calculate_protein_target(weight, goal)
+
         st.success(f"하루 권장 칼로리: {tdee} kcal, 하루 단백질 목표: {protein_target} g")
 
         split = {"breakfast": round(tdee*0.3), "lunch": round(tdee*0.4), "dinner": round(tdee*0.3)}
         st.markdown("### 오늘의 식사 목표")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("아침 칼로리", f"{split['breakfast']} kcal")
-        col2.metric("점심 칼로리", f"{split['lunch']} kcal")
-        col3.metric("저녁 칼로리", f"{split['dinner']} kcal")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("아침 칼로리", f"{split['breakfast']} kcal")
+        c2.metric("점심 칼로리", f"{split['lunch']} kcal")
+        c3.metric("저녁 칼로리", f"{split['dinner']} kcal")
 
         allergy_list = [x.strip() for x in (allergy or "").split(",") if x.strip()]
         religion_list = [x.strip() for x in (religion or "").split(",") if x.strip()]
 
         day_plan = plan_full_day(split, protein_target, FOOD_DB, diet_pref=None, allergy_list=allergy_list, religion_list=religion_list)
 
-        st.markdown("### 추천 식단 (하루)")
-        for meal_name in ["breakfast","lunch","dinner"]:
-            st.subheader(meal_name.capitalize())
-            item = day_plan.get(meal_name, {})
-            if not item:
-                st.info("추천할 식단이 없습니다.")
-                continue
-            if item["type"] == "table":
-                st.table(item["data"])
-            else:
-                data = item["data"]
-                st.write("구성:", ", ".join(data["foods"]))
-                st.write(f"칼로리 합: {data['cal']:.0f} kcal, 단백질 합: {data['protein']:.0f} g")
-                st.write(f"태그: {data.get('tags','')}")
-        # 예시 차트: 하루 식사별 목표 칼로리(차트용 df 생성 및 안전 출력)
-        chart_df = pd.DataFrame({
-            "meal":["아침","점심","저녁"],
-            "cal":[split["breakfast"], split["lunch"], split["dinner"]],
-            "category":["목표","목표","목표"]
-        })
-        # 검증: 필요한 컬럼 존재 여부
-        req_cols = ["meal","cal","category"]
-        missing = [c for c in req_cols if c not in chart_df.columns]
-        if missing:
-            st.error(f"차트에 필요한 컬럼이 없습니다: {', '.join(missing)}")
-        else:
-            safe_show_altair(chart_df, enc_x='meal:N', enc_y='cal:Q', enc_color='category:N', tooltip=['meal','cal','category'])
+        # 레이아웃: 추천(왼) / 시각화(오)
+        left_col, right_col = st.columns([2,1])
+
+        with left_col:
+            st.markdown("## 추천 식단 (하루)")
+            for meal_name in ["breakfast","lunch","dinner"]:
+                st.subheader(meal_name.capitalize())
+                item = day_plan.get(meal_name, {})
+                if not item:
+                    st.info("추천할 식단이 없습니다.")
+                    continue
+                if item["type"] == "table":
+                    st.table(item["data"])
+                else:
+                    data = item["data"]
+                    foods = data["foods"]
+                    cal = data["cal"]
+                    prot = data["protein"]
+                    tags = data.get("tags","")
+                    st.markdown(f"**구성:** {', '.join(foods)}")
+                    st.write(f"- 칼로리 합: {cal:.0f} kcal")
+                    st.write(f"- 단백질 합: {prot:.0f} g")
+                    st.write(f"- 태그: {tags}")
+                    if st.button(f"다른 조합 보기({meal_name})", key=f"reroll_{meal_name}"):
+                        sel = recommend_meals_simple(split[meal_name], preferred_food=preferred_food, allergy=allergy, religion=religion, top_n=3)
+                        st.table(sel)
+
+            # CSV 다운로드
+            all_items = []
+            for m in ["breakfast","lunch","dinner"]:
+                it = day_plan.get(m)
+                if not it:
+                    continue
+                if it["type"] == "table":
+                    df_export = it["data"].copy()
+                    df_export["meal"] = m
+                    all_items.append(df_export)
+                else:
+                    d = it["data"]
+                    df_export = pd.DataFrame({
+                        "meal":[m]*len(d["foods"]),
+                        "food":d["foods"]
+                    })
+                    all_items.append(df_export)
+            if all_items:
+                export_df = pd.concat(all_items, ignore_index=True)
+                csv = export_df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button("추천 식단 CSV 다운로드", data=csv, file_name="healicious_plan.csv", mime="text/csv")
+
+        with right_col:
+            st.markdown("## 시각화")
+            chart_df = pd.DataFrame({
+                "meal":["아침","점심","저녁"],
+                "cal":[split["breakfast"], split["lunch"], split["dinner"]],
+                "category":["목표","목표","목표"]
+            })
+            safe_show_altair(chart_df, enc_x='meal:N', enc_y='cal:Q', enc_color='category:N', tooltip=['meal','cal','category'], width=400, height=300)
+
+            # 영양소 비율 예시
+            nut_df = pd.DataFrame({
+                "nutrient":["탄수화물","단백질","지방"],
+                "percent":[55, 25, 20]
+            })
+            try:
+                pie = alt.Chart(nut_df).mark_arc().encode(
+                    theta=alt.Theta(field="percent", type="Q"),
+                    color=alt.Color(field="nutrient", type="N"),
+                    tooltip=["nutrient","percent"]
+                ).properties(width=350, height=300)
+                st.altair_chart(pie, use_container_width=True)
+            except Exception:
+                logger.error("pie chart error:\n%s", traceback.format_exc())
+
+        # -------------------------
+        # 하나고등학교 인근 식당 추천(EXTENDER)
+        # -------------------------
+        st.markdown("## 🏫 하나고등학교 인근 식당 추천")
+        st.markdown("샘플 데이터를 사용합니다. 실제 CSV(/mnt/data/nearby_restaurants.csv)나 API로 교체하세요.")
+        try:
+            if st.button("🔎 근처 식당 찾기 (반경 1.0km)"):
+                rdf = NEARBY_RESTAURANTS.copy()
+                # 컬럼명 방어
+                if "lat" not in rdf.columns or "lon" not in rdf.columns:
+                    st.warning("샘플 데이터에 위치(lat/lon) 정보가 없습니다. nearby_restaurants.csv 형식을 확인하세요.")
+                else:
+                    rdf["distance_km"] = rdf.apply(lambda r: haversine(HANAGOODGE_LAT, HANAGOODGE_LON, r["lat"], r["lon"]), axis=1)
+                    nearby = rdf[rdf["distance_km"] <= 1.0].sort_values("distance_km").reset_index(drop=True)
+                    if nearby.empty:
+                        st.info("1km 반경 내 샘플 식당이 없습니다. nearby_restaurants.csv 업로드 또는 API 연동을 권장합니다.")
+                        try:
+                            st.dataframe(rdf.sort_values("distance_km").head(10))
+                        except Exception:
+                            st.dataframe(rdf.head(10))
+                    else:
+                        st.dataframe(nearby[["name","category","est_cal","distance_km"]])
+        except Exception:
+            logger.error("nearby block error:\n%s", traceback.format_exc())
+            st.error("근처 식당 검색 중 문제가 발생했습니다. 관리자 로그를 확인해 주세요.")
+
+        # -------------------------
+        # 과학적 근거 설명
+        # -------------------------
+        st.markdown("## 🔬 과학적 원리 (펼쳐보기)")
+        with st.expander("영양학적/생리학적 기반 설명 보기"):
+            st.write("""
+            • BMR: Mifflin–St Jeor (혹은 Harris–Benedict 유사) 기반 추정식을 사용합니다.
+            • 활동지수: 활동 수준에 따라 TDEE를 조정(예: 1.2~1.9).
+            • 목표별 칼로리 조정: 감량 -300 kcal, 증량 +300 kcal, 근육 증가 +150 kcal (기본값).
+            • 식사 배분: 아침 30% / 점심 40% / 저녁 30% (기본 가이드).
+            • 균형화 원리: 각 식사에 메인 단백질 + 곡류(또는 대체) + 채소 포함, 비타민·미네랄 태그를 끼니별로 분산.
+            • 단백질 분배: 하루 단백질을 끼별로 분배(근합성 최적화 목적).
+            """)
+            st.write("원하시면 참고문헌(논문/가이드라인) 요약도 추가해 드리겠습니다.")
+
+        # -------------------------
+        # 관리자 안내
+        # -------------------------
+        st.markdown("## 개발자/관리자 안내")
+        st.write("""
+        - 외부 DB(file: /mnt/data/food_2000.xlsx 또는 food_700.xlsx 또는 20250408_음식DB.xlsx)를 올리면 자동 로드합니다.
+        - nearby_restaurants.csv 파일을 /mnt/data에 올리면 인근 식당 데이터로 대체됩니다.
+        - 추천 알고리즘·UI는 추가로 조정 가능합니다(이미지, 드래그 앤 드롭, 사용자 이력 저장 등).
+        - 2000개 실제 항목을 원하시면 샘플 엑셀을 생성해 제공해 드릴 수 있습니다.
+        """)
 
     except Exception:
         tb = traceback.format_exc()
         logger.error("메인 실행 중 예외 발생:\n%s", tb)
-        st.error("식단 생성 중 문제가 발생했습니다. 관리자 로그를 확인해 주세요.")
+        if debug_mode:
+            st.error(tb)
+        else:
+            st.error("식단 생성 중 문제가 발생했습니다. 관리자 로그를 확인해 주세요.")
