@@ -140,11 +140,9 @@ def load_nearby_restaurant_db():
         except:
             pass
     sample = [
-        {"name":"하나분식","lat":37.5975,"lon":127.0389,"category":"분식","est_cal":"라볶이 700kcal"},
-        {"name":"가벼운샐러드","lat":37.5972,"lon":127.0395,"category":"샐러드","est_cal":"샐러드 350kcal"},
-        {"name":"한솥도시락","lat":37.5969,"lon":127.0390,"category":"도시락","est_cal":"도시락 650kcal"},
-        {"name":"국수집","lat":37.5978,"lon":127.0378,"category":"국수","est_cal":"칼국수 550kcal"},
-        {"name":"김밥천국","lat":37.5981,"lon":127.0385,"category":"분식","est_cal":"김밥 320kcal"},
+        {"name":"청류","lat":37.5975,"lon":127.0389,"category":"국수","est_cal":"평양냉면 700kcal"},
+        {"name":"1인1잔","lat":37.5972,"lon":127.0395,"category":"샐러드","est_cal":"샐러드 350kcal"},
+        {"name":"폴 바셋 은평한옥마을지점","lat":37.5969,"lon":127.0390,"category":"분식","est_cal":"초코프라페 650kcal"},
     ]
     return pd.DataFrame(sample)
 
