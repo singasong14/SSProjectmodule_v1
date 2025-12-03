@@ -345,33 +345,7 @@ if run:
                         st.write(f"{i+1}. {', '.join(alt['foods'])} — {alt['cal']} kcal / {alt['protein']} g (score {alt['score']:.1f})")
 
     # 하루 요약 그래프(칼로리/탄단지)
-    summary_rows = []
-    for meal in ["breakfast","lunch","dinner"]:
-        p = day_plan[meal]
-        if p["type"] == "table":
-            dfm = p["data"]
-            total_cal = dfm["calories"].sum()
-            total_prot = dfm["protein"].sum()
-            total_carbs = dfm["carbs"].sum()
-            total_fat = dfm["fat"].sum()
-        else:
-            d = p["data"]
-            total_cal = d["cal"]
-            total_prot = d["protein"]
-            # carbs/fat 추정(없다면 0)
-            total_carbs = 0
-            total_fat = 0
-        summary_rows.append({"meal":meal, "cal":total_cal, "protein":total_prot, "carbs":total_carbs, "fat":total_fat})
-    summary_df = pd.DataFrame(summary_rows)
-    summary_melt = summary_df.melt(id_vars="meal", value_vars=["cal","protein","carbs","fat"], var_name="nutrient", value_name="value")
-    chart = alt.Chart(summary_melt).mark_bar().encode(
-        x=alt.X('meal:N', title='식사'),
-        y=alt.Y('value:Q', title='양'),
-        color='nutrient:N',
-        column=alt.Column('nutrient:N', header=alt.Header(labelAngle=0))
-    ).properties(height=150)
-    st.altair_chart(chart, use_container_width=True)
-
+   
 # -------------------------
 # 하나고등학교 인근 식당 추천(EXTENDER)
 # -------------------------
